@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>통계방법 실습 웹앱 · SPSS 순서 재현</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+    body { font-family: 'Noto Sans KR', system-ui, sans-serif; }
+    .step-active { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; }
+    .card { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-5; }
+    table.result { @apply w-full text-sm; }
+    table.result th { @apply bg-slate-100 px-3 py-2 text-left font-medium text-slate-700; }
+    table.result td { @apply px-3 py-2 border-t border-slate-100; }
+    .sig { color: #059669; font-weight: 600; }
+    .ns { color: #94a3b8; }
+    .menu-path { @apply bg-slate-800 text-green-300 font-mono text-xs px-3 py-2 rounded-lg inline-block; }
+    pre.code { @apply bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 text-white">
+    <div class="max-w-7xl mx-auto px-4 py-6">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl md:text-3xl font-bold tracking-tight">통계방법 실습 웹앱</h1>
+          <p class="text-blue-200 text-sm mt-1">2026.11.21 수업 기준 · 요인분석 → 신뢰도 → 변수계산 → 상관 → 회귀 (SPSS 순서 재현)</p>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <span class="bg-white/10 px-3 py-1.5 rounded-full">N = <span id="n-cases">204</span></span>
+          <span class="bg-emerald-500/20 text-emerald-200 px-3 py-1.5 rounded-full">매개효과test.sav 로드됨</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Sidebar Navigation -->
+    <aside class="lg:col-span-3">
+      <nav class="sticky top-4 space-y-1">
+        <button onclick="showStep(0)" class="step-btn step-active w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition" data-step="0">
+          0. 개요 & 데이터
+        </button>
+        <button onclick="showStep(1)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="1">
+          1. 요인분석 (타당성)
+        </button>
+        <button onclick="showStep(2)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="2">
+          2. 신뢰도 분석 (α)
+        </button>
+        <button onclick="showStep(3)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="3">
+          3. 변수 계산 (합변수)
+        </button>
+        <button onclick="showStep(4)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="4">
+          4. 상관분석
+        </button>
+        <button onclick="showStep(5)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="5">
+          5. 회귀분석 (H1~H3)
+        </button>
+        <button onclick="showStep(6)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="6">
+          6. 결과 요약 & 제출
+        </button>
+      </nav>
+
+      <div class="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+        <p class="font-semibold mb-1">안내</p>
+        <p>이 앱은 수업 노트와 동일한 데이터(매개효과test.sav)를 내장하고 있습니다. 각 단계의 SPSS 메뉴 경로와 실제 계산 결과를 함께 보여줍니다.</p>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="lg:col-span-9 space-y-6" id="main-content">
+
+      <!-- STEP 0: Overview -->
+      <section id="step-0" class="step-panel">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-2">전체 분석 흐름</h2>
+          <p class="text-slate-600 text-sm mb-4">요인분석(타당성) → 신뢰도 분석 → 변수 계산 → 상관분석 → 회귀분석(가설 3개) → 엑셀로 복사하여 제출</p>
+          
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+            <div class="bg-blue-50 rounded-lg p-3 text-center">
+              <div class="text-2xl font-bold text-blue-700">6</div>
+              <div class="text-xs text-blue-600">요인 (타당성)</div>
+            </div>
+            <div class="bg-emerald-50 rounded-lg p-3 text-center">
+              <div class="text-2xl font-bold text-emerald-700">6</div>
+              <div class="text-xs text-emerald-600">합변수</div>
+            </div>
+            <div class="bg-violet-50 rounded-lg p-3 text-center">
+              <div class="text-2xl font-bold text-violet-700">3</div>
+              <div class="text-xs text-violet-600">회귀 가설</div>
+            </div>
+          </div>
+
+          <h3 class="font-semibold mb-2">연구모형</h3>
+          <div class="bg-slate-100 rounded-lg p-4 text-sm mb-4">
+            <p class="font-medium">변혁적 리더십 (하위 4차원) → 심리적 자본 (매개) → 혁신행동</p>
+            <ul class="mt-2 space-y-1 text-slate-600">
+              <li>• 카리스마, 개별배려, 지적 자극, 동기부여</li>
+            </ul>
+          </div>
+
+          <h3 class="font-semibold mb-2">가설</h3>
+          <table class="result border rounded-lg overflow-hidden">
+            <thead>
+              <tr><th>가설</th><th>종속변수</th><th>독립변수</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="font-medium">H1</td><td>심리적 자본</td><td>카리스마, 배려, 지적 자극, 동기부여</td></tr>
+              <tr><td class="font-medium">H2</td><td>혁신행동</td><td>심리적 자본</td></tr>
+              <tr><td class="font-medium">H3</td><td>혁신행동</td><td>카리스마, 배려, 지적 자극, 동기부여</td></tr>
+            </tbody>
+          </table>
+          <p class="text-xs text-slate-500 mt-2">※ 매개효과 검증은 다음 시간에 진행합니다.</p>
+        </div>
+
+        <div class="card mt-4">
+          <h3 class="font-semibold mb-3">데이터 미리보기 (문항 점수)</h3>
+          <div class="overflow-x-auto max-h-64">
+            <table class="result text-xs" id="preview-table">
+              <thead><tr id="preview-head"></tr></thead>
+              <tbody id="preview-body"></tbody>
+            </table>
+          </div>
+          <p class="text-xs text-slate-500 mt-2">총 204케이스 · 문항 24개 + 합변수 6개</p>
+        </div>
+      </section>
+
+      <!-- STEP 1: Factor Analysis -->
+      <section id="step-1" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">1. 요인분석 (타당성)</h2>
+          <p class="text-sm text-slate-500 mb-4">분석 → 차원 축소 → 요인분석</p>
+
+          <div class="menu-path mb-4">분석 → 차원 축소 → 요인분석</div>
+
+          <h3 class="font-semibold text-sm mb-2">SPSS 설정 순서</h3>
+          <ol class="list-decimal list-inside text-sm space-y-1.5 text-slate-700 mb-6">
+            <li>변수 1번을 클릭하고 마지막 변수까지 <kbd class="bg-slate-200 px-1 rounded">Shift</kbd>를 눌러 전체 선택한 뒤, 화살표로 오른쪽 칸에 옮김</li>
+            <li><strong>기술통계</strong>: KMO와 Bartlett의 구형성 검정 체크 (교수님 “3개 체크”)</li>
+            <li><strong>요인추출</strong>: 스크리 도표만 체크 → 계속</li>
+            <li><strong>요인회전</strong>: 베리맥스만 체크 → 계속</li>
+            <li><strong>점수</strong>: 변수로 저장, 요인점수 계수행렬 표시 체크 → 계속</li>
+            <li><strong>옵션</strong>: 크기순 정렬 체크 → 계속 → 확인</li>
+          </ol>
+
+          <div class="grid md:grid-cols-2 gap-4 mb-6">
+            <div class="bg-blue-50 rounded-lg p-4">
+              <div class="text-xs text-blue-600 font-medium">KMO</div>
+              <div class="text-3xl font-bold text-blue-800">0.788</div>
+              <div class="text-xs text-blue-600 mt-1">0.6 이상이면 괜찮음 (수업 기준)</div>
+            </div>
+            <div class="bg-emerald-50 rounded-lg p-4">
+              <div class="text-xs text-emerald-600 font-medium">Bartlett 구형성 검정</div>
+              <div class="text-3xl font-bold text-emerald-800">p &lt; .001</div>
+              <div class="text-xs text-emerald-600 mt-1">0.05보다 작아야 함</div>
+            </div>
+          </div>
+
+          <h3 class="font-semibold text-sm mb-2">고유값 (Eigenvalues) – 상위 8개</h3>
+          <div class="bg-slate-50 rounded-lg p-4 mb-4">
+            <canvas id="screeChart" height="180"></canvas>
+          </div>
+          <p class="text-sm text-slate-600 mb-4">고유값 1 이상인 요인이 <strong>6개</strong> → 정상 (강의와 동일)</p>
+
+          <h3 class="font-semibold text-sm mb-2">요인 해석 (회전된 성분 행렬 기준)</h3>
+          <div class="overflow-x-auto">
+            <table class="result border rounded-lg">
+              <thead>
+                <tr>
+                  <th>요인</th>
+                  <th>구성 개념</th>
+                  <th>주요 문항</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>1</td><td class="font-medium">혁신행동</td><td>혁신행동1~6</td></tr>
+                <tr><td>2</td><td class="font-medium">심리적 자본</td><td>심리적자본1~5</td></tr>
+                <tr><td>3</td><td class="font-medium">지적 자극</td><td>지적자극1~4</td></tr>
+                <tr><td>4</td><td class="font-medium">배려 (개별배려)</td><td>배려1~3</td></tr>
+                <tr><td>5</td><td class="font-medium">동기부여</td><td>동기1~3</td></tr>
+                <tr><td>6</td><td class="font-medium">카리스마</td><td>카리스마1~3</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-xs text-slate-500 mt-3">※ 회전된 성분 행렬에서 0.5 이하 값은 삭제한 뒤 해석합니다. 엑셀로 복사 후 정리하세요.</p>
+        </div>
+      </section>
+
+      <!-- STEP 2: Reliability -->
+      <section id="step-2" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">2. 신뢰도 분석 (크론바흐 α)</h2>
+          <p class="text-sm text-slate-500 mb-4">분석 → 척도 → 신뢰도 분석</p>
+          <div class="menu-path mb-4">분석 → 척도 → 신뢰도 분석 · 모형: 알파</div>
+
+          <ol class="list-decimal list-inside text-sm space-y-1.5 mb-6">
+            <li>변수 하나의 문항들을 오른쪽 항목 칸으로 옮김 (예: 혁신행동1~6)</li>
+            <li>모형: 알파로 두고 확인</li>
+            <li>결과 표에서 크론바흐 알파 값을 확인 (기준 0.6 이상)</li>
+            <li>변수마다 따로 반복</li>
+          </ol>
+
+          <h3 class="font-semibold mb-3">계산된 크론바흐 α</h3>
+          <table class="result border rounded-lg overflow-hidden">
+            <thead>
+              <tr><th>구성개념</th><th>문항 수</th><th>Cronbach’s α</th><th>판정</th></tr>
+            </thead>
+            <tbody id="alpha-table">
+              <!-- filled by JS -->
+            </tbody>
+          </table>
+          <p class="text-xs text-slate-500 mt-3">※ 예시에서 혁신행동 .866, 심리적 자본은 높게 나옴. 기준은 0.6 이상.</p>
+        </div>
+      </section>
+
+      <!-- STEP 3: Compute variables -->
+      <section id="step-3" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">3. 변수 계산 (합변수 만들기)</h2>
+          <p class="text-sm text-slate-500 mb-4">변환 → 변수 계산</p>
+          <div class="menu-path mb-4">변환 → 변수 계산</div>
+
+          <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 text-sm">
+            <strong class="text-red-700">가장 많이 하는 실수:</strong> 괄호를 빼먹는 것.<br>
+            괄호가 없으면 마지막 문항만 문항 수로 나눠집니다.
+          </div>
+
+          <h3 class="font-semibold text-sm mb-2">수식 예시</h3>
+          <pre class="code mb-4">혁신행동합 = (혁신행동1 + 혁신행동2 + 혁신행동3 + 혁신행동4 + 혁신행동5 + 혁신행동6) / 6
+카리스마합 = (카리스마1 + 카리스마2 + 카리스마3) / 3
+개별배려합 = (배려1 + 배려2 + 배려3) / 3
+지적자극합 = (지적자극1 + 지적자극2 + 지적자극3 + 지적자극4) / 4
+동기부여합 = (동기1 + 동기2 + 동기3) / 3
+심리적자본합 = (심리적자본1 + … + 심리적자본5) / 5</pre>
+
+          <h3 class="font-semibold text-sm mb-2">생성된 합변수 기술통계</h3>
+          <table class="result border rounded-lg overflow-hidden">
+            <thead>
+              <tr><th>변수</th><th>문항수</th><th>평균</th><th>표준편차</th></tr>
+            </thead>
+            <tbody id="sum-stats">
+              <!-- filled by JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- STEP 4: Correlation -->
+      <section id="step-4" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">4. 상관분석</h2>
+          <p class="text-sm text-slate-500 mb-4">분석 → 상관분석 → 이변량 상관</p>
+          <div class="menu-path mb-4">분석 → 상관분석 → 이변량 상관 · Pearson</div>
+
+          <ol class="list-decimal list-inside text-sm space-y-1.5 mb-4">
+            <li>만든 합변수 6개를 전부 오른쪽으로 옮김</li>
+            <li>Pearson이 체크된 기본 상태 그대로 확인</li>
+            <li>결과 표를 엑셀로 복사해서 정리</li>
+          </ol>
+
+          <div class="bg-slate-100 rounded-lg p-3 text-xs mb-4">
+            <strong>정리 방법</strong><br>
+            • 피어슨 상관 값만 남기고, 유의확률(양측)과 N 행은 모두 삭제<br>
+            • 대각선의 1을 기준으로 오른쪽(위쪽) 값은 같은 숫자라서 삭제 → 삼각형 표 완성
+          </div>
+
+          <h3 class="font-semibold text-sm mb-2">피어슨 상관행렬 (하삼각)</h3>
+          <div class="overflow-x-auto">
+            <table class="result border rounded-lg text-xs" id="corr-table">
+              <!-- filled by JS -->
+            </table>
+          </div>
+          <p class="text-xs text-slate-500 mt-2">※ 해석 방법은 교재를 참고하세요.</p>
+        </div>
+      </section>
+
+      <!-- STEP 5: Regression -->
+      <section id="step-5" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">5. 회귀분석</h2>
+          <p class="text-sm text-slate-500 mb-4">분석 → 회귀분석 → 선형</p>
+          <div class="menu-path mb-4">분석 → 회귀분석 → 선형 · 통계량: R제곱 변화량, 공선성 진단, Durbin-Watson</div>
+
+          <h3 class="font-semibold text-sm mb-2">공통 순서 (가설마다 반복)</h3>
+          <ol class="list-decimal list-inside text-sm space-y-1 mb-6">
+            <li>종속변수와 독립변수를 표대로 넣음</li>
+            <li>통계량: R 제곱 변화량, 공선성 진단, Durbin-Watson 3개 체크 → 계속 → 확인</li>
+            <li>결과 읽기 순서: 모형 요약(수정된 R²) → ANOVA(F 유의확률) → 계수(유의확률 & 표준화 계수 β)</li>
+          </ol>
+
+          <!-- H1 -->
+          <div class="border border-blue-200 rounded-xl overflow-hidden mb-6">
+            <div class="bg-blue-600 text-white px-4 py-2 font-semibold">H1 · 심리적 자본 ← 카리스마 + 배려 + 지적자극 + 동기부여</div>
+            <div class="p-4 space-y-3">
+              <div class="grid grid-cols-3 gap-3 text-center text-sm">
+                <div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">수정 R²</div><div class="text-lg font-bold">.378 (37.8%)</div></div>
+                <div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">F</div><div class="text-lg font-bold">31.80</div></div>
+                <div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">유의확률</div><div class="text-lg font-bold sig">p &lt; .001</div></div>
+              </div>
+              <table class="result border rounded-lg text-sm">
+                <thead><tr><th>독립변수</th><th>B</th><th>β (표준화)</th><th>t</th><th>p</th><th>해석</th></tr></thead>
+                <tbody>
+                  <tr><td>카리스마</td><td>0.204</td><td>.184</td><td>3.20</td><td class="sig">.002</td><td class="sig">유의한 정(+) 영향</td></tr>
+                  <tr><td>개별배려</td><td>0.312</td><td>.363</td><td>6.40</td><td class="sig">.000</td><td class="sig">유의한 정(+) 영향</td></tr>
+                  <tr><td>지적 자극</td><td>0.224</td><td>.406</td><td>7.19</td><td class="sig">.000</td><td class="sig">유의한 정(+) 영향 (가장 큼)</td></tr>
+                  <tr><td>동기부여</td><td>-0.005</td><td>-.011</td><td>-0.18</td><td class="ns">.855</td><td class="ns">영향 없음</td></tr>
+                </tbody>
+              </table>
+              <p class="text-xs text-slate-600">→ 지적 자극이 심리적 자본에 가장 큰 영향을 미침 (β=.406)</p>
+            </div>
+          </div>
+
+          <!-- H2 -->
+          <div class="border border-emerald-200 rounded-xl overflow-hidden mb-6">
+            <div class="bg-emerald-600 text-white px-4 py-2 font-semibold">H2 · 혁신행동 ← 심리적 자본</div>
+            <div class="p-4 space-y-3">
+              <div class="grid grid-cols-3 gap-3 text-center text-sm">
+                <div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">수정 R²</div><div class="text-lg font-bold">.131 (13.1%)</div></div>
+                <div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">F</div><div class="text-lg font-bold">31.65</div></div>
+                <div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">유의확률</div><div class="text-lg font-bold sig">p &lt; .001</div></div>
+              </div>
+              <table class="result border rounded-lg text-sm">
+                <thead><tr><th>독립변수</th><th>B</th><th>β</th><th>t</th><th>p</th><th>해석</th></tr></thead>
+                <tbody>
+                  <tr><td>심리적 자본</td><td>0.350</td><td>.368</td><td>5.63</td><td class="sig">.000</td><td class="sig">유의한 정(+) 영향</td></tr>
+                </tbody>
+              </table>
+              <p class="text-xs text-slate-600">나머지 87%는 다른 요인에 의해 설명됨.</p>
+            </div>
+          </div>
+
+          <!-- H3 -->
+          <div class="border border-violet-200 rounded-xl overflow-hidden">
+            <div class="bg-violet-600 text-white px-4 py-2 font-semibold">H3 · 혁신행동 ← 카리스마 + 배려 + 지적자극 + 동기부여</div>
+            <div class="p-4 space-y-3">
+              <div class="grid grid-cols-3 gap-3 text-center text-sm">
+                <div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">수정 R²</div><div class="text-lg font-bold">.258 (25.8%)</div></div>
+                <div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">F</div><div class="text-lg font-bold">18.62</div></div>
+                <div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">유의확률</div><div class="text-lg font-bold sig">p &lt; .001</div></div>
+              </div>
+              <table class="result border rounded-lg text-sm">
+                <thead><tr><th>독립변수</th><th>B</th><th>β</th><th>t</th><th>p</th><th>해석</th></tr></thead>
+                <tbody>
+                  <tr><td>카리스마</td><td>0.556</td><td>.470</td><td>7.86</td><td class="sig">.000</td><td class="sig">유의한 정(+) 영향</td></tr>
+                  <tr><td>개별배려</td><td>-0.015</td><td>-.016</td><td>-0.27</td><td class="ns">.786</td><td class="ns">영향 없음</td></tr>
+                  <tr><td>지적 자극</td><td>0.060</td><td>.102</td><td>1.73</td><td class="ns">.084</td><td class="ns">영향 없음 (경계)</td></tr>
+                  <tr><td>동기부여</td><td>0.016</td><td>.030</td><td>0.49</td><td class="ns">.622</td><td class="ns">영향 없음</td></tr>
+                </tbody>
+              </table>
+              <p class="text-xs text-slate-600">→ 카리스마만 혁신행동에 유의한 영향. (H3에서 결과가 다르게 나온 학생은 변수 계산 시 괄호 누락 가능성 높음)</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 6: Summary -->
+      <section id="step-6" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-4">6. 결과 요약 & 제출 안내</h2>
+
+          <table class="result border rounded-lg overflow-hidden mb-6">
+            <thead>
+              <tr><th>가설</th><th>수정 R²</th><th>F</th><th>계수 결과</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-medium">H1</td>
+                <td>.378 (37.8%)</td>
+                <td class="sig">유의</td>
+                <td>카리스마·배려·지적자극은 유의한 정(+)의 영향, 동기부여는 영향 없음</td>
+              </tr>
+              <tr>
+                <td class="font-medium">H2</td>
+                <td>.131 (13.1%)</td>
+                <td class="sig">유의</td>
+                <td>심리적 자본이 혁신행동에 유의한 정(+)의 영향</td>
+              </tr>
+              <tr>
+                <td class="font-medium">H3</td>
+                <td>.258</td>
+                <td class="sig">유의</td>
+                <td>카리스마만 혁신행동에 유의</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="bg-slate-800 text-white rounded-xl p-5 mb-4">
+            <h3 class="font-semibold mb-2">제출 방법</h3>
+            <ol class="list-decimal list-inside text-sm space-y-1 text-slate-200">
+              <li>SPSS를 전부 끄고, 분석한 결과를 엑셀 시트에 복사해서 제출하세요.</li>
+              <li>교수님: “지금 이해 못해도 괜찮다, 앞으로 7번 더 한다”</li>
+              <li>SPSS 평가판은 1년에 한 번만 설치할 수 있다는 안내도 있었습니다.</li>
+            </ol>
+          </div>
+
+          <div class="flex flex-wrap gap-3">
+            <button onclick="downloadCSV()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">
+              합변수 + 상관 결과 CSV 다운로드
+            </button>
+            <a href="data_items.csv" download class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-5 py-2.5 rounded-lg text-sm font-medium transition">
+              원본 문항 데이터 CSV
+            </a>
+          </div>
+        </div>
+
+        <div class="card mt-4 text-sm text-slate-600">
+          <h3 class="font-semibold text-slate-800 mb-2">확인이 필요한 부분 (녹취 불확실)</h3>
+          <ul class="list-disc list-inside space-y-1">
+            <li>R² .258: 녹취에서 “258”로만 들려서 .258로 기록</li>
+            <li>KMO 기준: 이번 수업 0.6, 지난 시간 0.5</li>
+            <li>기술통계 체크 항목: “3개”인데 이름이 불명확 → KMO와 Bartlett만 확실</li>
+            <li>심리적 자본 문항 수: “5개”라는 말과 다른 숫자가 섞여 있음 → 실제 파일 문항 수로 나눔</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="max-w-7xl mx-auto px-4 py-8 text-center text-xs text-slate-400">
+    통계방법 실습 정리 (SPSS 순서) · 2026.11.21 수업 기반 웹 재현 · 데이터: 매개효과test.sav
+  </footer>
+
+  <script>
+    // ========== Data & Stats (precomputed from the .sav to match lecture) ==========
+    const N = 204;
+    const alphas = [
+      { name: '혁신행동', n: 6, alpha: 0.866, ok: true },
+      { name: '심리적 자본', n: 5, alpha: 0.910, ok: true },
+      { name: '카리스마', n: 3, alpha: 0.865, ok: true },
+      { name: '배려 (개별배려)', n: 3, alpha: 0.917, ok: true },
+      { name: '지적 자극', n: 4, alpha: 0.881, ok: true },
+      { name: '동기부여', n: 3, alpha: 0.873, ok: true },
+    ];
+
+    const sumStats = [
+      { name: '카리스마합', n: 3, mean: 4.709, sd: 0.48 },
+      { name: '개별배려합', n: 3, mean: 4.497, sd: 0.65 },
+      { name: '지적자극합', n: 4, mean: 3.718, sd: 0.89 },
+      { name: '동기부여합', n: 3, mean: 4.111, sd: 0.82 },
+      { name: '심리적자본합', n: 5, mean: 4.463, sd: 0.55 },
+      { name: '혁신행동합', n: 6, mean: 4.531, sd: 0.48 },
+    ];
+
+    // Correlation matrix (order: 카리스마, 배려, 지적자극, 동기, 심리자본, 혁신)
+    const labels = ['카리스마합', '개별배려합', '지적자극합', '동기부여합', '심리적자본합', '혁신행동합'];
+    const corr = [
+      [1.000, 0.220, 0.162, 0.057, 0.330, 0.511],
+      [0.220, 1.000, 0.015, 0.004, 0.410, 0.094],
+      [0.162, 0.015, 1.000,-0.110, 0.443, 0.184],
+      [0.057, 0.004,-0.110, 1.000,-0.043, 0.046],
+      [0.330, 0.410, 0.443,-0.043, 1.000, 0.368],
+      [0.511, 0.094, 0.184, 0.046, 0.368, 1.000],
+    ];
+
+    // Eigenvalues for scree
+    const eigenvalues = [7.044, 3.342, 2.919, 2.312, 1.668, 1.263, 0.835, 0.727, 0.65, 0.55];
+
+    // Preview data (first 8 rows of key items) - loaded from JSON if available
+    let previewData = null;
+
+    // ========== UI ==========
+    function showStep(n) {
+      document.querySelectorAll('.step-panel').forEach(el => el.classList.add('hidden'));
+      document.getElementById('step-' + n).classList.remove('hidden');
+      document.querySelectorAll('.step-btn').forEach(btn => {
+        btn.classList.remove('step-active');
+        btn.classList.add('bg-white', 'border');
+      });
+      const active = document.querySelector(`.step-btn[data-step="${n}"]`);
+      active.classList.add('step-active');
+      active.classList.remove('bg-white', 'border');
+      if (n === 1) drawScree();
+    }
+
+    function fillAlphaTable() {
+      const tbody = document.getElementById('alpha-table');
+      tbody.innerHTML = alphas.map(a => `
+        <tr>
+          <td class="font-medium">${a.name}</td>
+          <td>${a.n}</td>
+          <td class="font-mono">${a.alpha.toFixed(3)}</td>
+          <td class="${a.ok ? 'sig' : 'ns'}">${a.ok ? '양호 (≥0.6)' : '재검토'}</td>
+        </tr>
+      `).join('');
+    }
+
+    function fillSumStats() {
+      const tbody = document.getElementById('sum-stats');
+      tbody.innerHTML = sumStats.map(s => `
+        <tr>
+          <td class="font-medium">${s.name}</td>
+          <td>${s.n}</td>
+          <td>${s.mean.toFixed(3)}</td>
+          <td>${s.sd.toFixed(3)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function fillCorrTable() {
+      const table = document.getElementById('corr-table');
+      let html = '<thead><tr><th></th>' + labels.map(l => `<th class="text-center">${l}</th>`).join('') + '</tr></thead><tbody>';
+      for (let i = 0; i < 6; i++) {
+        html += `<tr><td class="font-medium whitespace-nowrap">${labels[i]}</td>`;
+        for (let j = 0; j < 6; j++) {
+          if (j > i) {
+            html += '<td class="text-center text-slate-300">·</td>';
+          } else if (j === i) {
+            html += '<td class="text-center font-medium">1</td>';
+          } else {
+            const v = corr[i][j];
+            const cls = Math.abs(v) >= 0.3 ? 'font-semibold text-blue-700' : '';
+            html += `<td class="text-center ${cls}">${v.toFixed(3)}</td>`;
+          }
+        }
+        html += '</tr>';
+      }
+      html += '</tbody>';
+      table.innerHTML = html;
+    }
+
+    function drawScree() {
+      const ctx = document.getElementById('screeChart');
+      if (ctx._chart) return;
+      ctx._chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: eigenvalues.map((_, i) => (i + 1) + '요인'),
+          datasets: [{
+            label: '고유값',
+            data: eigenvalues,
+            borderColor: '#1e40af',
+            backgroundColor: 'rgba(30,64,175,0.1)',
+            fill: true,
+            tension: 0.2,
+            pointRadius: 5,
+          }, {
+            label: '기준선 (1.0)',
+            data: eigenvalues.map(() => 1),
+            borderColor: '#ef4444',
+            borderDash: [5, 5],
+            pointRadius: 0,
+            fill: false,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom' } },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'Eigenvalue' } }
+          }
+        }
+      });
+    }
+
+    function downloadCSV() {
+      let csv = '변수,' + labels.join(',') + '\n';
+      for (let i = 0; i < 6; i++) {
+        csv += labels[i] + ',' + corr[i].map(v => v.toFixed(3)).join(',') + '\n';
+      }
+      csv += '\n합변수,평균,표준편차\n';
+      sumStats.forEach(s => { csv += `${s.name},${s.mean},${s.sd}\n`; });
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '상관_합변수_결과.csv';
+      a.click();
+    }
+
+    // Embedded preview data (works offline / file://)
+    const EMBEDDED_PREVIEW = {"혁신행동1": [5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 5.0, 5.0], "혁신행동2": [3.0, 5.0, 5.0, 4.0, 4.0, 4.0, 5.0, 5.0], "혁신행동3": [5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 4.0, 5.0], "혁신행동4": [4.0, 5.0, 5.0, 4.0, 4.0, 4.0, 5.0, 5.0], "혁신행동5": [3.0, 5.0, 5.0, 4.0, 4.0, 4.0, 3.0, 5.0], "혁신행동6": [4.0, 5.0, 5.0, 4.0, 4.0, 4.0, 3.0, 5.0], "카리스마3": [5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 4.0, 5.0], "카리스마1": [5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 4.0, 5.0], "카리스마2": [5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 5.0, 5.0], "배려1": [5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 4.0, 5.0], "배려2": [5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 4.0, 5.0], "배려3": [4.0, 5.0, 5.0, 4.0, 4.0, 4.0, 5.0, 5.0], "심리적자본1": [4.0, 5.0, 5.0, 4.0, 4.0, 4.0, 5.0, 5.0], "심리적자본2": [5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 5.0, 5.0], "심리적자본3": [4.0, 4.0, 5.0, 4.0, 4.0, 4.0, 4.0, 5.0], "심리적자본4": [5.0, 4.0, 5.0, 4.0, 4.0, 4.0, 5.0, 5.0], "심리적자본5": [4.0, 4.0, 5.0, 4.0, 4.0, 4.0, 3.0, 5.0], "지적자극4": [3.0, 3.0, 5.0, 4.0, 2.0, 3.0, 4.0, 1.0], "지적자극3": [3.0, 3.0, 5.0, 4.0, 3.0, 2.0, 4.0, 2.0], "지적자극2": [4.0, 4.0, 5.0, 4.0, 4.0, 5.0, 3.0, 4.0], "지적자극1": [4.0, 4.0, 5.0, 4.0, 4.0, 5.0, 2.0, 4.0], "동기1": [4.0, 5.0, 5.0, 4.0, 3.0, 5.0, 1.0, 2.0], "동기2": [5.0, 5.0, 5.0, 4.0, 3.0, 4.0, 1.0, 3.0], "동기3": [5.0, 5.0, 4.0, 4.0, 4.0, 5.0, 1.0, 3.0], "카리스마합": [5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 4.333333333333333, 5.0], "개별배려합": [4.666666666666667, 5.0, 5.0, 4.0, 4.0, 4.0, 4.333333333333333, 5.0], "혁신행동합": [4.0, 5.0, 5.0, 4.0, 4.0, 4.0, 4.166666666666667, 5.0], "심리적자본합": [4.4, 4.4, 5.0, 4.0, 4.0, 4.0, 4.4, 5.0], "지적자극합": [3.5, 3.5, 5.0, 4.0, 3.25, 3.75, 3.25, 2.75], "동기부여합": [4.666666666666667, 5.0, 4.666666666666667, 4.0, 3.3333333333333335, 4.666666666666667, 1.0, 2.6666666666666665]};
+
+    function loadPreview() {
+      const data = EMBEDDED_PREVIEW;
+      const keys = Object.keys(data).slice(0, 8);
+      const head = document.getElementById('preview-head');
+      head.innerHTML = '<th>#</th>' + keys.map(k => `<th class="whitespace-nowrap">${k}</th>`).join('');
+      const body = document.getElementById('preview-body');
+      let rows = '';
+      for (let i = 0; i < 6; i++) {
+        rows += `<tr><td>${i+1}</td>` + keys.map(k => `<td>${data[k][i]}</td>`).join('') + '</tr>';
+      }
+      body.innerHTML = rows;
+    }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+      fillAlphaTable();
+      fillSumStats();
+      fillCorrTable();
+      loadPreview();
+    });
+  </script>
+</body>
+</html>

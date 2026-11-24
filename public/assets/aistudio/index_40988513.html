@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>통계방법 실습 웹앱 · 데이터 업로드 & 분석</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+    body { font-family: 'Noto Sans KR', system-ui, sans-serif; }
+    .step-active { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; border-color: transparent !important; }
+    .card { background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgb(0 0 0 / 0.08); border: 1px solid #e2e8f0; padding: 1.25rem; }
+    table.result { width: 100%; font-size: 0.875rem; }
+    table.result th { background: #f1f5f9; padding: 0.5rem 0.75rem; text-align: left; font-weight: 500; color: #334155; }
+    table.result td { padding: 0.5rem 0.75rem; border-top: 1px solid #f1f5f9; }
+    .sig { color: #059669; font-weight: 600; }
+    .ns { color: #94a3b8; }
+    .menu-path { background: #1e293b; color: #86efac; font-family: ui-monospace, monospace; font-size: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 0.5rem; display: inline-block; }
+    .dropzone { border: 2px dashed #94a3b8; border-radius: 0.75rem; padding: 2rem; text-align: center; transition: all 0.2s; cursor: pointer; }
+    .dropzone.dragover { border-color: #3b82f6; background: #eff6ff; }
+    input[type="checkbox"] { width: 1rem; height: 1rem; accent-color: #2563eb; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <header class="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 text-white">
+    <div class="max-w-7xl mx-auto px-4 py-5">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+          <h1 class="text-2xl md:text-3xl font-bold">통계방법 실습 웹앱</h1>
+          <p class="text-blue-200 text-sm mt-1">CSV 업로드 → 변수 매핑 → 신뢰도 · 합변수 · 상관 · 회귀 자동 분석</p>
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+          <span id="badge-n" class="bg-white/10 px-3 py-1.5 rounded-full hidden">N = <span id="n-cases">0</span></span>
+          <span id="badge-status" class="bg-amber-500/30 text-amber-100 px-3 py-1.5 rounded-full">데이터 대기 중</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <aside class="lg:col-span-3">
+      <nav class="sticky top-4 space-y-1">
+        <button onclick="showStep(0)" class="step-btn step-active w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition border" data-step="0">0. 데이터 업로드</button>
+        <button onclick="showStep(1)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="1">1. 변수 매핑</button>
+        <button onclick="showStep(2)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="2">2. 신뢰도 분석 (α)</button>
+        <button onclick="showStep(3)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="3">3. 합변수 계산</button>
+        <button onclick="showStep(4)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="4">4. 상관분석</button>
+        <button onclick="showStep(5)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="5">5. 회귀분석</button>
+        <button onclick="showStep(6)" class="step-btn w-full text-left px-4 py-3 rounded-lg text-sm font-medium bg-white hover:bg-blue-50 transition border" data-step="6">6. 결과 요약 · 다운로드</button>
+      </nav>
+      <div class="mt-4 p-3 bg-slate-100 rounded-xl text-xs text-slate-600">
+        <p class="font-semibold text-slate-800 mb-1">프로세스</p>
+        <p>① CSV 업로드<br>② 문항 → 구성개념 매핑<br>③ 분석 실행<br>④ 신뢰도·합변수·상관·회귀 확인<br>⑤ CSV로 결과 저장</p>
+      </div>
+    </aside>
+
+    <main class="lg:col-span-9 space-y-4">
+      <!-- 0 Upload -->
+      <section id="step-0" class="step-panel">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">0. 데이터 업로드</h2>
+          <p class="text-sm text-slate-500 mb-4">CSV 파일 (첫 행 = 변수명). SPSS: 다른 이름으로 저장 → CSV</p>
+          <div id="dropzone" class="dropzone mb-4" onclick="document.getElementById('file-input').click()">
+            <p class="text-lg font-medium text-slate-700">CSV 파일을 여기에 놓거나 클릭</p>
+            <p class="text-sm text-slate-500 mt-1">숫자 점수 데이터</p>
+            <input type="file" id="file-input" accept=".csv,text/csv" class="hidden" />
+          </div>
+          <div class="flex flex-wrap gap-2 mb-4">
+            <button onclick="loadSample()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium">수업 샘플 데이터 불러오기</button>
+            <a href="data_items.csv" download class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg text-sm font-medium">샘플 CSV 다운로드</a>
+          </div>
+          <div id="upload-info" class="hidden">
+            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm mb-3">
+              <span class="font-semibold text-emerald-800" id="file-name">—</span>
+              · 케이스 <span id="info-n">0</span>개 · 변수 <span id="info-p">0</span>개
+            </div>
+            <div class="overflow-x-auto max-h-48 border rounded-lg">
+              <table class="result text-xs"><thead><tr id="preview-head"></tr></thead><tbody id="preview-body"></tbody></table>
+            </div>
+            <button onclick="showStep(1)" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium">다음: 변수 매핑 →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 1 Mapping -->
+      <section id="step-1" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">1. 변수 매핑</h2>
+          <p class="text-sm text-slate-500 mb-4">각 구성개념에 문항을 체크하세요. 합변수 = 체크 문항의 평균</p>
+          <div id="mapping-area" class="space-y-4"></div>
+          <div class="mt-6 p-4 bg-slate-50 rounded-lg">
+            <h3 class="font-semibold text-sm mb-2">회귀 가설 설정</h3>
+            <p class="text-xs text-slate-500 mb-3">H1: 매개 ← 독립들 &nbsp; H2: 최종종속 ← 매개 &nbsp; H3: 최종종속 ← 독립들</p>
+            <div class="grid md:grid-cols-3 gap-3 text-sm">
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">매개 / H1 종속</label>
+                <select id="sel-mediator" class="w-full border rounded-lg px-3 py-2"></select>
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">최종 종속 (H2, H3)</label>
+                <select id="sel-dependent" class="w-full border rounded-lg px-3 py-2"></select>
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">독립변수 (다중)</label>
+                <div id="indep-checks" class="border rounded-lg p-2 max-h-28 overflow-y-auto space-y-1"></div>
+              </div>
+            </div>
+          </div>
+          <button onclick="runAllAnalyses()" class="mt-6 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-sm font-semibold">분석 실행</button>
+          <p id="run-msg" class="text-sm text-slate-500 mt-2"></p>
+        </div>
+      </section>
+
+      <!-- 2 Reliability -->
+      <section id="step-2" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">2. 신뢰도 분석 (크론바흐 α)</h2>
+          <div class="menu-path mb-4">기준: α ≥ 0.6 양호</div>
+          <table class="result border rounded-lg overflow-hidden">
+            <thead><tr><th>구성개념</th><th>문항 수</th><th>Cronbach’s α</th><th>판정</th></tr></thead>
+            <tbody id="alpha-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 3 Composites -->
+      <section id="step-3" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">3. 합변수 계산</h2>
+          <div class="bg-red-50 border border-red-200 rounded-lg p-3 text-sm mb-4"><strong class="text-red-700">참고:</strong> 이 앱은 문항 평균을 자동 계산합니다. (괄호 실수 방지)</div>
+          <table class="result border rounded-lg overflow-hidden">
+            <thead><tr><th>합변수</th><th>문항수</th><th>평균</th><th>표준편차</th><th>최솟값</th><th>최댓값</th></tr></thead>
+            <tbody id="sum-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 4 Correlation -->
+      <section id="step-4" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">4. 상관분석 (Pearson)</h2>
+          <div class="menu-path mb-4">하삼각 표시</div>
+          <div class="overflow-x-auto"><table class="result border rounded-lg text-xs" id="corr-table"></table></div>
+        </div>
+      </section>
+
+      <!-- 5 Regression -->
+      <section id="step-5" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-1">5. 회귀분석</h2>
+          <div class="menu-path mb-4">수정 R² · F · B · β · t · p</div>
+          <div id="reg-results" class="space-y-6"></div>
+        </div>
+      </section>
+
+      <!-- 6 Summary -->
+      <section id="step-6" class="step-panel hidden">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-4">6. 결과 요약 · 다운로드</h2>
+          <div id="summary-box" class="mb-4 text-sm text-slate-600">분석을 먼저 실행하세요.</div>
+          <div class="flex flex-wrap gap-3">
+            <button onclick="downloadResultsCSV()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium">결과 CSV 다운로드</button>
+            <button onclick="downloadCompositesCSV()" class="bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-medium">합변수 데이터 CSV</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="max-w-7xl mx-auto px-4 py-8 text-center text-xs text-slate-400">
+    로컬 브라우저에서만 계산 · 데이터는 외부로 전송되지 않습니다
+  </footer>
+
+<script>
+let rawData = [], columns = [], constructs = [], composites = {}, analysis = null;
+
+const DEFAULT_CONSTRUCTS = [
+  { name: '혁신행동', patterns: [/^혁신행동/i, /^innov/i] },
+  { name: '카리스마', patterns: [/^카리스마/i, /^charisma/i] },
+  { name: '배려', patterns: [/^배려/i, /^개별배려/i, /^consider/i] },
+  { name: '심리적자본', patterns: [/^심리적자본/i, /^심리자본/i, /^psycap/i] },
+  { name: '지적자극', patterns: [/^지적자극/i, /^지적/i, /^intel/i] },
+  { name: '동기부여', patterns: [/^동기/i, /^motiv/i, /^inspir/i] },
+];
+
+function mean(arr) {
+  const a = arr.filter(x => x != null && !isNaN(x));
+  return a.length ? a.reduce((s, v) => s + v, 0) / a.length : NaN;
+}
+function variance(arr, ddof = 1) {
+  const a = arr.filter(x => x != null && !isNaN(x));
+  if (a.length < 2) return NaN;
+  const m = mean(a);
+  return a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - ddof);
+}
+function std(arr) { return Math.sqrt(variance(arr)); }
+
+function cronbachAlpha(itemMatrix) {
+  const nItems = itemMatrix[0]?.length || 0;
+  if (nItems < 2) return NaN;
+  const itemVars = [];
+  for (let j = 0; j < nItems; j++) itemVars.push(variance(itemMatrix.map(r => r[j])));
+  const totals = itemMatrix.map(r => r.reduce((s, v) => s + v, 0));
+  const totalVar = variance(totals);
+  if (!totalVar) return NaN;
+  return (nItems / (nItems - 1)) * (1 - itemVars.reduce((s, v) => s + v, 0) / totalVar);
+}
+
+function pearson(x, y) {
+  let sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, c = 0;
+  const n = Math.min(x.length, y.length);
+  for (let i = 0; i < n; i++) {
+    const a = x[i], b = y[i];
+    if (a == null || b == null || isNaN(a) || isNaN(b)) continue;
+    sx += a; sy += b; sxx += a * a; syy += b * b; sxy += a * b; c++;
+  }
+  if (c < 3) return NaN;
+  const num = c * sxy - sx * sy;
+  const den = Math.sqrt((c * sxx - sx * sx) * (c * syy - sy * sy));
+  return den === 0 ? NaN : num / den;
+}
+
+function corrMatrix(vars) {
+  const names = Object.keys(vars);
+  const m = names.map(() => names.map(() => 0));
+  for (let i = 0; i < names.length; i++) {
+    m[i][i] = 1;
+    for (let j = 0; j < i; j++) {
+      const r = pearson(vars[names[i]], vars[names[j]]);
+      m[i][j] = m[j][i] = r;
+    }
+  }
+  return { names, matrix: m };
+}
+
+function ols(y, Xcols) {
+  const rows = [];
+  for (let i = 0; i < y.length; i++) {
+    if (y[i] == null || isNaN(y[i])) continue;
+    let ok = true;
+    const row = [1];
+    for (const col of Xcols) {
+      const v = col.values[i];
+      if (v == null || isNaN(v)) { ok = false; break; }
+      row.push(v);
+    }
+    if (ok) rows.push({ y: y[i], x: row });
+  }
+  const n = rows.length, k = Xcols.length;
+  if (n < k + 2) return null;
+
+  const XtX = Array.from({ length: k + 1 }, () => Array(k + 1).fill(0));
+  const Xty = Array(k + 1).fill(0);
+  for (const r of rows) {
+    for (let i = 0; i <= k; i++) {
+      Xty[i] += r.x[i] * r.y;
+      for (let j = 0; j <= k; j++) XtX[i][j] += r.x[i] * r.x[j];
+    }
+  }
+  const A = XtX.map((row, i) => [...row, Xty[i]]);
+  const p = k + 1;
+  for (let col = 0; col < p; col++) {
+    let piv = col;
+    for (let r = col + 1; r < p; r++) if (Math.abs(A[r][col]) > Math.abs(A[piv][col])) piv = r;
+    [A[col], A[piv]] = [A[piv], A[col]];
+    const div = A[col][col];
+    if (Math.abs(div) < 1e-12) return null;
+    for (let j = col; j <= p; j++) A[col][j] /= div;
+    for (let r = 0; r < p; r++) {
+      if (r === col) continue;
+      const f = A[r][col];
+      for (let j = col; j <= p; j++) A[r][j] -= f * A[col][j];
+    }
+  }
+  const b = A.map(row => row[p]);
+
+  let ssRes = 0, ssTot = 0;
+  const yMean = rows.reduce((s, r) => s + r.y, 0) / n;
+  for (const r of rows) {
+    let yh = 0;
+    for (let i = 0; i <= k; i++) yh += b[i] * r.x[i];
+    ssRes += (r.y - yh) ** 2;
+    ssTot += (r.y - yMean) ** 2;
+  }
+  const r2 = 1 - ssRes / ssTot;
+  const adjR2 = 1 - (1 - r2) * (n - 1) / (n - k - 1);
+  const mse = ssRes / (n - k - 1);
+  const fStat = (r2 / k) / ((1 - r2) / (n - k - 1));
+  const fp = fDistP(fStat, k, n - k - 1);
+
+  const inv = Array.from({ length: p }, () => Array(p).fill(0));
+  for (let c = 0; c < p; c++) {
+    const M = XtX.map((row, i) => {
+      const rhs = Array(p).fill(0); rhs[c] = 1;
+      return [...row, rhs[i]];
+    });
+    for (let col = 0; col < p; col++) {
+      let piv = col;
+      for (let r = col + 1; r < p; r++) if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+      [M[col], M[piv]] = [M[piv], M[col]];
+      const div = M[col][col];
+      for (let j = col; j <= p; j++) M[col][j] /= div;
+      for (let r = 0; r < p; r++) {
+        if (r === col) continue;
+        const fac = M[r][col];
+        for (let j = col; j <= p; j++) M[r][j] -= fac * M[col][j];
+      }
+    }
+    for (let r = 0; r < p; r++) inv[r][c] = M[r][p];
+  }
+
+  const ySd = Math.sqrt(ssTot / (n - 1));
+  const coeffs = [];
+  for (let i = 0; i <= k; i++) {
+    const se = Math.sqrt(Math.max(0, inv[i][i] * mse));
+    const t = se > 0 ? b[i] / se : NaN;
+    const pval = tDistP(Math.abs(t), n - k - 1);
+    let beta = null;
+    if (i > 0) {
+      const xSd = std(Xcols[i - 1].values);
+      beta = (xSd && ySd) ? b[i] * xSd / ySd : NaN;
+    }
+    coeffs.push({ name: i === 0 ? '(상수)' : Xcols[i - 1].name, b: b[i], se, t, p: pval, beta });
+  }
+  return { n, k, r2, adjR2, f: fStat, fp, coeffs };
+}
+
+function logGamma(z) {
+  if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - logGamma(1 - z);
+  z -= 1;
+  const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.984369654078761e-6, 1.5056327351493116e-7];
+  let x = c[0];
+  for (let i = 1; i < 9; i++) x += c[i] / (z + i);
+  const t = z + 7.5;
+  return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+}
+function incompleteBeta(x, a, b) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const lbeta = logGamma(a) + logGamma(b) - logGamma(a + b);
+  const front = Math.exp(Math.log(x) * a + Math.log(1 - x) * b - lbeta) / a;
+  let f = 1, c = 1, d = 1 - (a + b) * x / (a + 1);
+  if (Math.abs(d) < 1e-30) d = 1e-30;
+  d = 1 / d; f = d;
+  for (let m = 1; m <= 200; m++) {
+    let num = m * (b - m) * x / ((a + 2 * m - 1) * (a + 2 * m));
+    d = 1 + num * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d;
+    c = 1 + num / c; if (Math.abs(c) < 1e-30) c = 1e-30;
+    f *= d * c;
+    num = -(a + m) * (a + b + m) * x / ((a + 2 * m) * (a + 2 * m + 1));
+    d = 1 + num * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d;
+    c = 1 + num / c; if (Math.abs(c) < 1e-30) c = 1e-30;
+    const cd = d * c; f *= cd;
+    if (Math.abs(cd - 1) < 1e-10) break;
+  }
+  const result = front * f;
+  if (x > (a + 1) / (a + b + 2)) return Math.min(1, Math.max(0, 1 - result));
+  return Math.min(1, Math.max(0, result));
+}
+function tDistP(t, df) {
+  if (!isFinite(t) || df < 1) return 1;
+  const x = df / (df + t * t);
+  return incompleteBeta(x, df / 2, 0.5);
+}
+function fDistP(f, df1, df2) {
+  if (!isFinite(f) || f < 0) return 1;
+  const x = df2 / (df2 + df1 * f);
+  return incompleteBeta(x, df2 / 2, df1 / 2);
+}
+
+function showStep(n) {
+  document.querySelectorAll('.step-panel').forEach(el => el.classList.add('hidden'));
+  document.getElementById('step-' + n).classList.remove('hidden');
+  document.querySelectorAll('.step-btn').forEach(btn => {
+    btn.classList.remove('step-active');
+    btn.classList.add('bg-white');
+  });
+  const active = document.querySelector('.step-btn[data-step="' + n + '"]');
+  active.classList.add('step-active');
+  active.classList.remove('bg-white');
+  if (n === 1 && columns.length) refreshHypothesisSelects();
+}
+
+function setStatus(text, ok) {
+  const el = document.getElementById('badge-status');
+  el.textContent = text;
+  el.className = ok
+    ? 'bg-emerald-500/30 text-emerald-100 px-3 py-1.5 rounded-full'
+    : 'bg-amber-500/30 text-amber-100 px-3 py-1.5 rounded-full';
+}
+
+function parseCSVFile(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true, dynamicTyping: true, skipEmptyLines: true,
+      complete: res => resolve(res.data),
+      error: reject
+    });
+  });
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+function fmt(v) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'number') return Number.isInteger(v) ? v : (+v).toFixed(3);
+  return esc(v);
+}
+function fmtP(p) {
+  if (p == null || isNaN(p)) return '—';
+  if (p < 0.001) return 'p < .001';
+  return 'p = ' + p.toFixed(3);
+}
+
+function onDataLoaded(rows, name) {
+  rawData = rows.filter(r => Object.values(r).some(v => v !== null && v !== ''));
+  columns = Object.keys(rawData[0] || {}).filter(c => c && String(c).trim());
+  document.getElementById('file-name').textContent = name || '데이터';
+  document.getElementById('info-n').textContent = rawData.length;
+  document.getElementById('info-p').textContent = columns.length;
+  document.getElementById('n-cases').textContent = rawData.length;
+  document.getElementById('badge-n').classList.remove('hidden');
+  document.getElementById('upload-info').classList.remove('hidden');
+  setStatus('데이터 로드됨 · 매핑 필요', false);
+
+  const showCols = columns.slice(0, 10);
+  document.getElementById('preview-head').innerHTML = '<th>#</th>' + showCols.map(c => '<th class="whitespace-nowrap">' + esc(c) + '</th>').join('');
+  document.getElementById('preview-body').innerHTML = rawData.slice(0, 5).map((r, i) =>
+    '<tr><td>' + (i + 1) + '</td>' + showCols.map(c => '<td>' + fmt(r[c]) + '</td>').join('') + '</tr>'
+  ).join('');
+
+  buildMappingUI();
+}
+
+function autoMapColumns() {
+  constructs = DEFAULT_CONSTRUCTS.map(dc => {
+    const items = columns.filter(c => dc.patterns.some(p => p.test(c)) && !/합$|합계|mean|avg|FAC|_1$|_2$/i.test(c));
+    return { name: dc.name, items };
+  }).filter(c => c.items.length > 0);
+  if (!constructs.length && columns.length) {
+    constructs = [{ name: '구성개념1', items: columns.slice(0, Math.min(6, columns.length)) }];
+  }
+}
+
+function buildMappingUI() {
+  autoMapColumns();
+  const area = document.getElementById('mapping-area');
+  area.innerHTML = constructs.map((c, idx) =>
+    '<div class="border rounded-lg p-3" data-idx="' + idx + '">' +
+    '<div class="flex items-center gap-2 mb-2">' +
+    '<input type="text" class="construct-name border rounded px-2 py-1 text-sm font-medium flex-1" value="' + esc(c.name) + '" />' +
+    '<span class="text-xs text-slate-400">문항 선택</span></div>' +
+    '<div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">' +
+    columns.map(col => {
+      const checked = c.items.includes(col) ? ' checked' : '';
+      return '<label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" class="item-check" data-col="' + esc(col) + '"' + checked + ' /><span>' + esc(col) + '</span></label>';
+    }).join('') +
+    '</div></div>'
+  ).join('') +
+  '<button type="button" onclick="addConstruct()" class="text-sm text-blue-600 hover:underline">+ 구성개념 추가</button>';
+  refreshHypothesisSelects();
+}
+
+function addConstruct() {
+  constructs.push({ name: '새구성개념', items: [] });
+  buildMappingUI();
+}
+
+function readConstructsFromUI() {
+  const blocks = document.querySelectorAll('#mapping-area > div[data-idx]');
+  constructs = [];
+  blocks.forEach(block => {
+    const name = (block.querySelector('.construct-name').value || 'unnamed').trim();
+    const items = [...block.querySelectorAll('.item-check:checked')].map(cb => cb.dataset.col);
+    if (items.length) constructs.push({ name, items });
+  });
+  return constructs;
+}
+
+function refreshHypothesisSelects() {
+  readConstructsFromUI();
+  const names = constructs.map(c => c.name);
+  const fill = (sel, prefer) => {
+    sel.innerHTML = names.map(n => '<option value="' + esc(n) + '"' + (n === prefer ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
+  };
+  fill(document.getElementById('sel-mediator'), names.find(n => /심리|매개|capital/i.test(n)) || names[0] || '');
+  fill(document.getElementById('sel-dependent'), names.find(n => /혁신|종속|outcome|innov/i.test(n)) || names[names.length - 1] || '');
+  const defaultIndep = names.filter(n => !/심리|혁신|매개/i.test(n));
+  document.getElementById('indep-checks').innerHTML = names.map(n => {
+    const checked = defaultIndep.includes(n) ? ' checked' : '';
+    return '<label class="flex items-center gap-1.5"><input type="checkbox" class="indep-check" value="' + esc(n) + '"' + checked + '/> ' + esc(n) + '</label>';
+  }).join('');
+}
+
+function runAllAnalyses() {
+  readConstructsFromUI();
+  if (!rawData.length) { alert('먼저 데이터를 업로드하세요.'); showStep(0); return; }
+  if (!constructs.length) { alert('구성개념에 문항을 하나 이상 체크하세요.'); return; }
+
+  document.getElementById('run-msg').textContent = '계산 중…';
+
+  const alphaRows = [];
+  composites = {};
+  for (const c of constructs) {
+    const matrix = [];
+    for (let i = 0; i < rawData.length; i++) {
+      const row = c.items.map(it => {
+        const v = rawData[i][it];
+        if (v == null || v === '') return null;
+        const num = Number(v);
+        return isNaN(num) ? null : num;
+      });
+      if (row.every(x => x != null)) matrix.push(row);
+    }
+    alphaRows.push({ name: c.name, nItems: c.items.length, alpha: cronbachAlpha(matrix) });
+
+    composites[c.name] = rawData.map(r => {
+      const vals = c.items.map(it => {
+        const v = r[it];
+        if (v == null || v === '') return null;
+        const num = Number(v);
+        return isNaN(num) ? null : num;
+      }).filter(x => x != null);
+      return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+    });
+  }
+
+  const corr = corrMatrix(composites);
+  const medName = document.getElementById('sel-mediator').value;
+  const depName = document.getElementById('sel-dependent').value;
+  const indepNames = [...document.querySelectorAll('.indep-check:checked')].map(cb => cb.value);
+
+  const regs = [];
+  if (indepNames.length && composites[medName]) {
+    const m = ols(composites[medName], indepNames.map(n => ({ name: n, values: composites[n] })));
+    if (m) regs.push({ label: 'H1 · ' + medName + ' ← ' + indepNames.join(' + '), ...m });
+  }
+  if (composites[depName] && composites[medName] && medName !== depName) {
+    const m = ols(composites[depName], [{ name: medName, values: composites[medName] }]);
+    if (m) regs.push({ label: 'H2 · ' + depName + ' ← ' + medName, ...m });
+  }
+  if (indepNames.length && composites[depName]) {
+    const m = ols(composites[depName], indepNames.map(n => ({ name: n, values: composites[n] })));
+    if (m) regs.push({ label: 'H3 · ' + depName + ' ← ' + indepNames.join(' + '), ...m });
+  }
+
+  analysis = { alphaRows, corr, regs, constructs, medName, depName, indepNames };
+  renderAlpha(alphaRows);
+  renderSums();
+  renderCorr(corr);
+  renderRegs(regs);
+  renderSummary();
+  document.getElementById('run-msg').textContent = '분석 완료. 왼쪽 메뉴에서 결과를 확인하세요.';
+  setStatus('분석 완료', true);
+  showStep(2);
+}
+
+function renderAlpha(rows) {
+  document.getElementById('alpha-tbody').innerHTML = rows.map(r => {
+    const ok = r.alpha >= 0.6;
+    return '<tr><td class="font-medium">' + esc(r.name) + '</td><td>' + r.nItems + '</td><td class="font-mono">' +
+      (isNaN(r.alpha) ? '—' : r.alpha.toFixed(3)) + '</td><td class="' + (ok ? 'sig' : 'ns') + '">' +
+      (isNaN(r.alpha) ? '—' : (ok ? '양호 (≥0.6)' : '재검토 필요')) + '</td></tr>';
+  }).join('');
+}
+
+function renderSums() {
+  document.getElementById('sum-tbody').innerHTML = Object.keys(composites).map(name => {
+    const v = composites[name].filter(x => x != null);
+    const nItems = (constructs.find(c => c.name === name) || {}).items?.length || '—';
+    return '<tr><td class="font-medium">' + esc(name) + '</td><td>' + nItems + '</td><td>' +
+      mean(v).toFixed(3) + '</td><td>' + std(v).toFixed(3) + '</td><td>' +
+      Math.min(...v).toFixed(3) + '</td><td>' + Math.max(...v).toFixed(3) + '</td></tr>';
+  }).join('');
+}
+
+function renderCorr(corr) {
+  const { names, matrix } = corr;
+  let html = '<thead><tr><th></th>' + names.map(n => '<th class="text-center whitespace-nowrap">' + esc(n) + '</th>').join('') + '</tr></thead><tbody>';
+  for (let i = 0; i < names.length; i++) {
+    html += '<tr><td class="font-medium whitespace-nowrap">' + esc(names[i]) + '</td>';
+    for (let j = 0; j < names.length; j++) {
+      if (j > i) html += '<td class="text-center text-slate-300">·</td>';
+      else if (j === i) html += '<td class="text-center font-medium">1</td>';
+      else {
+        const v = matrix[i][j];
+        const cls = Math.abs(v) >= 0.3 ? 'font-semibold text-blue-700' : '';
+        html += '<td class="text-center ' + cls + '">' + (isNaN(v) ? '—' : v.toFixed(3)) + '</td>';
+      }
+    }
+    html += '</tr>';
+  }
+  document.getElementById('corr-table').innerHTML = html + '</tbody>';
+}
+
+function renderRegs(regs) {
+  const box = document.getElementById('reg-results');
+  if (!regs.length) {
+    box.innerHTML = '<p class="text-slate-500">회귀 결과가 없습니다. 가설 변수 선택을 확인하세요.</p>';
+    return;
+  }
+  const colors = [
+    { border: 'border-blue-200', bg: 'bg-blue-600' },
+    { border: 'border-emerald-200', bg: 'bg-emerald-600' },
+    { border: 'border-violet-200', bg: 'bg-violet-600' }
+  ];
+  box.innerHTML = regs.map((m, idx) => {
+    const col = colors[idx % colors.length];
+    const sigF = m.fp < 0.05;
+    return '<div class="border ' + col.border + ' rounded-xl overflow-hidden">' +
+      '<div class="' + col.bg + ' text-white px-4 py-2 font-semibold text-sm">' + esc(m.label) + '</div>' +
+      '<div class="p-4 space-y-3">' +
+      '<div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-sm">' +
+      '<div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">수정 R²</div><div class="text-lg font-bold">' + (m.adjR2 * 100).toFixed(1) + '%</div><div class="text-xs text-slate-400">' + m.adjR2.toFixed(3) + '</div></div>' +
+      '<div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">R²</div><div class="text-lg font-bold">' + m.r2.toFixed(3) + '</div></div>' +
+      '<div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">F</div><div class="text-lg font-bold">' + m.f.toFixed(2) + '</div></div>' +
+      '<div class="bg-slate-50 rounded p-2"><div class="text-xs text-slate-500">모형 p</div><div class="text-lg font-bold ' + (sigF ? 'sig' : 'ns') + '">' + fmtP(m.fp) + '</div></div>' +
+      '</div>' +
+      '<table class="result border rounded-lg text-sm"><thead><tr><th>변수</th><th>B</th><th>β</th><th>t</th><th>p</th><th>해석</th></tr></thead><tbody>' +
+      m.coeffs.map(c => {
+        if (c.name === '(상수)') {
+          return '<tr><td>' + c.name + '</td><td>' + c.b.toFixed(3) + '</td><td>—</td><td>' + c.t.toFixed(2) + '</td><td class="' + (c.p < 0.05 ? 'sig' : 'ns') + '">' + fmtP(c.p) + '</td><td></td></tr>';
+        }
+        const sig = c.p < 0.05;
+        const dir = c.b > 0 ? '정(+)' : '부(-)';
+        return '<tr><td class="font-medium">' + esc(c.name) + '</td><td>' + c.b.toFixed(3) + '</td><td>' +
+          (c.beta != null && !isNaN(c.beta) ? c.beta.toFixed(3) : '—') + '</td><td>' + c.t.toFixed(2) +
+          '</td><td class="' + (sig ? 'sig' : 'ns') + '">' + fmtP(c.p) + '</td><td class="' + (sig ? 'sig' : 'ns') + '">' +
+          (sig ? '유의한 ' + dir + ' 영향' : '영향 없음') + '</td></tr>';
+      }).join('') +
+      '</tbody></table><p class="text-xs text-slate-500">N = ' + m.n + ' · 독립변수 ' + m.k + '개</p></div></div>';
+  }).join('');
+}
+
+function renderSummary() {
+  if (!analysis) return;
+  const lines = analysis.regs.map(m => {
+    const sigXs = m.coeffs.filter(c => c.name !== '(상수)' && c.p < 0.05).map(c => c.name);
+    return '<tr><td class="font-medium">' + esc(m.label.split('·')[0].trim()) + '</td><td>' +
+      m.adjR2.toFixed(3) + ' (' + (m.adjR2 * 100).toFixed(1) + '%)</td><td class="' + (m.fp < 0.05 ? 'sig' : 'ns') + '">' +
+      (m.fp < 0.05 ? '유의' : '비유의') + '</td><td>' + (sigXs.length ? sigXs.join(', ') + ' 유의' : '유의한 독립변수 없음') + '</td></tr>';
+  }).join('');
+  document.getElementById('summary-box').innerHTML =
+    '<table class="result border rounded-lg overflow-hidden mb-3"><thead><tr><th>가설</th><th>수정 R²</th><th>F</th><th>계수 결과</th></tr></thead><tbody>' +
+    lines + '</tbody></table><p class="text-xs text-slate-500">※ p값은 근사치입니다. 논문용 최종 수치는 SPSS와 교차 확인하세요.</p>';
+}
+
+function downloadResultsCSV() {
+  if (!analysis) { alert('먼저 분석을 실행하세요.'); return; }
+  let csv = '\uFEFF구성개념,문항수,Cronbach_alpha\n';
+  analysis.alphaRows.forEach(r => { csv += r.name + ',' + r.nItems + ',' + (isNaN(r.alpha) ? '' : r.alpha.toFixed(4)) + '\n'; });
+  csv += '\n합변수,평균,표준편차\n';
+  Object.keys(composites).forEach(name => {
+    const v = composites[name].filter(x => x != null);
+    csv += name + ',' + mean(v).toFixed(4) + ',' + std(v).toFixed(4) + '\n';
+  });
+  csv += '\n상관\n,' + analysis.corr.names.join(',') + '\n';
+  analysis.corr.names.forEach((n, i) => {
+    csv += n + ',' + analysis.corr.matrix[i].map(v => isNaN(v) ? '' : v.toFixed(4)).join(',') + '\n';
+  });
+  analysis.regs.forEach(m => {
+    csv += '\n' + m.label + '\n수정R2,' + m.adjR2.toFixed(4) + '\nF,' + m.f.toFixed(4) + '\np,' + m.fp + '\n변수,B,beta,t,p\n';
+    m.coeffs.forEach(c => { csv += c.name + ',' + c.b + ',' + (c.beta ?? '') + ',' + c.t + ',' + c.p + '\n'; });
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = '통계분석_결과.csv';
+  a.click();
+}
+
+function downloadCompositesCSV() {
+  if (!Object.keys(composites).length) { alert('먼저 분석을 실행하세요.'); return; }
+  const names = Object.keys(composites);
+  let csv = '\uFEFF' + names.join(',') + '\n';
+  for (let i = 0; i < composites[names[0]].length; i++) {
+    csv += names.map(nm => composites[nm][i] == null ? '' : composites[nm][i]).join(',') + '\n';
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = '합변수_데이터.csv';
+  a.click();
+}
+
+async function loadSample() {
+  try {
+    const res = await fetch('data_items.csv');
+    const text = await res.text();
+    const parsed = Papa.parse(text, { header: true, dynamicTyping: true, skipEmptyLines: true });
+    onDataLoaded(parsed.data, '매개효과test (샘플)');
+  } catch (e) {
+    alert('샘플 CSV를 불러올 수 없습니다. data_items.csv가 같은 폴더에 있는지 확인하거나 CSV를 직접 업로드하세요.');
+  }
+}
+
+document.getElementById('file-input').addEventListener('change', async e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  onDataLoaded(await parseCSVFile(file), file.name);
+});
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', async e => {
+  e.preventDefault();
+  dz.classList.remove('dragover');
+  const file = e.dataTransfer.files?.[0];
+  if (file) onDataLoaded(await parseCSVFile(file), file.name);
+});
+</script>
+</body>
+</html>
