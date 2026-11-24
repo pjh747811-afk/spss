@@ -1,9 +1,10 @@
 import React from 'react';
 import { Play, Plus, RotateCcw, Trash2 } from 'lucide-react';
-import { ConstructMapping, EFAConfig, HypothesisConfig } from '../../types/stats';
+import { ColumnKind, ColumnProfile, ConstructMapping, EFAConfig, HypothesisConfig } from '../../types/stats';
 
 interface StepMappingProps {
   columns: string[];
+  columnProfiles?: ColumnProfile[];
   constructs: ConstructMapping[];
   hypothesis: HypothesisConfig;
   efaConfig: EFAConfig;
@@ -14,8 +15,17 @@ interface StepMappingProps {
   onRunAnalysis: () => void;
 }
 
+const KIND_LABELS: Record<ColumnKind, { label: string; cls: string }> = {
+  numeric: { label: '수치', cls: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+  categorical: { label: '범주', cls: 'text-amber-700 bg-amber-50 border-amber-200' },
+  text: { label: '문자', cls: 'text-slate-600 bg-slate-100 border-slate-200' },
+  constant: { label: '상수', cls: 'text-slate-500 bg-slate-100 border-slate-200' },
+  empty: { label: '빈열', cls: 'text-red-600 bg-red-50 border-red-200' },
+};
+
 export const StepMapping: React.FC<StepMappingProps> = ({
   columns,
+  columnProfiles = [],
   constructs,
   hypothesis,
   efaConfig,
@@ -25,9 +35,8 @@ export const StepMapping: React.FC<StepMappingProps> = ({
   onAutoDetect,
   onRunAnalysis,
 }) => {
-  const itemColumns = columns.filter(
-    (c) => !/합$|합계|mean|avg|total|FAC/i.test(c.trim())
-  );
+  const profileMap = new Map(columnProfiles.map((p) => [p.name, p]));
+  const itemColumns = columns.filter((c) => profileMap.get(c)?.kind !== 'empty');
 
   const toggleItemInConstruct = (constructId: string, item: string) => {
     onChangeConstructs(
@@ -79,11 +88,11 @@ export const StepMapping: React.FC<StepMappingProps> = ({
 
   const validConstructNames = constructs.filter((c) => c.items.length > 0).map((c) => c.name);
   const assignedItems = new Set(constructs.flatMap((c) => c.items));
-  const controlCandidates = columns.filter(
-    (col) =>
-      !assignedItems.has(col) &&
-      !/합$|합계|mean|avg|total|FAC/i.test(col.trim())
-  );
+  const controlCandidates = columns.filter((col) => {
+    if (assignedItems.has(col)) return false;
+    const kind = profileMap.get(col)?.kind;
+    return kind !== 'empty' && kind !== 'text' && kind !== 'constant';
+  });
 
   if (!columns.length) {
     return (
@@ -95,7 +104,7 @@ export const StepMapping: React.FC<StepMappingProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-200">
           <div>
             <h3 className="text-base sm:text-lg font-bold text-slate-900">구성개념 및 문항 매핑</h3>
@@ -127,17 +136,17 @@ export const StepMapping: React.FC<StepMappingProps> = ({
           {constructs.map((c, idx) => (
             <div key={c.id} className="py-4">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <span className="text-xs font-mono text-slate-400 w-6">
+                <div className="flex flex-wrap items-center gap-2.5 min-w-0 flex-1">
+                  <span className="text-xs font-mono text-slate-400 w-6 shrink-0">
                     {String(idx + 1).padStart(2, '0')}
                   </span>
                   <input
                     type="text"
                     value={c.name}
                     onChange={(e) => updateConstructName(c.id, e.target.value)}
-                    className="border border-slate-300 rounded-xl px-3 py-1.5 min-h-[40px] text-sm font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                    className="border border-slate-300 rounded-xl px-3 py-1.5 min-h-[40px] w-full sm:w-56 min-w-0 text-sm font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                   />
-                  <span className="text-xs text-slate-500 font-mono tabular-nums font-medium">
+                  <span className="text-xs text-slate-500 font-mono tabular-nums font-medium whitespace-nowrap">
                     선택 문항 {c.items.length}개
                   </span>
                 </div>
@@ -153,17 +162,26 @@ export const StepMapping: React.FC<StepMappingProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-x-4 gap-y-2 pl-0 sm:pl-8">
+              <div className="flex flex-wrap gap-x-3 gap-y-2 pl-0 sm:pl-8">
                 {itemColumns.map((col) => {
                   const checked = c.items.includes(col);
+                  const prof = profileMap.get(col);
+                  const kindMeta = prof ? KIND_LABELS[prof.kind] : null;
                   return (
                     <label
                       key={col}
-                      className={`inline-flex items-center gap-2 text-xs cursor-pointer select-none py-1 px-2 rounded-lg transition-colors ${
+                      className={`inline-flex items-center gap-1.5 text-xs cursor-pointer select-none py-1 px-2 rounded-lg transition-colors ${
                         checked
                           ? 'text-blue-800 font-semibold bg-blue-50/70'
-                          : 'text-slate-600 hover:bg-slate-50'
+                          : prof && prof.kind !== 'numeric'
+                            ? 'text-slate-400 hover:bg-slate-50'
+                            : 'text-slate-700 hover:bg-slate-50'
                       }`}
+                      title={
+                        prof
+                          ? `${col} · 유효값 ${prof.validCount}건, 결측 ${prof.missingCount}건`
+                          : col
+                      }
                     >
                       <input
                         type="checkbox"
@@ -172,6 +190,13 @@ export const StepMapping: React.FC<StepMappingProps> = ({
                         className="w-4 h-4 accent-blue-700 rounded cursor-pointer"
                       />
                       <span>{col}</span>
+                      {kindMeta && prof?.kind !== 'numeric' && (
+                        <span
+                          className={`text-[10px] px-1.5 py-0.2 rounded border font-medium ${kindMeta.cls}`}
+                        >
+                          {kindMeta.label}
+                        </span>
+                      )}
                     </label>
                   );
                 })}
@@ -182,13 +207,13 @@ export const StepMapping: React.FC<StepMappingProps> = ({
       </div>
 
       {/* Research Model & EFA Options */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
         <h3 className="text-base sm:text-lg font-bold text-slate-900 pb-3.5 border-b border-slate-200">
           연구모형(가설 H1~H3 · 매개 · 통제 · 조절) 및 요인분석 옵션
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-5">
-          <div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 mt-5">
+          <div className="min-w-0">
             <label className="block text-xs font-bold text-slate-700 mb-2">
               독립변수 (X · H1, H3 독립변수)
             </label>
@@ -248,7 +273,7 @@ export const StepMapping: React.FC<StepMappingProps> = ({
             </div>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <label htmlFor="sel-mediator" className="block text-xs font-bold text-slate-700 mb-2">
               매개변수 (M · H1 종속 / H2 독립)
             </label>
@@ -265,11 +290,14 @@ export const StepMapping: React.FC<StepMappingProps> = ({
               }}
               className="w-full border border-slate-300 rounded-xl px-3.5 py-2 min-h-[42px] text-sm bg-white text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
             >
-              {validConstructNames.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
+              <option value="">선택 안 함 (직접회귀 모형)</option>
+              {validConstructNames
+                .filter((n) => n !== hypothesis.dependent)
+                .map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
             </select>
 
             <div className="mt-4">
@@ -284,11 +312,13 @@ export const StepMapping: React.FC<StepMappingProps> = ({
                   onChangeHypothesis({
                     ...hypothesis,
                     dependent: nextDep,
+                    mediator: hypothesis.mediator === nextDep ? '' : hypothesis.mediator,
                     independents: hypothesis.independents.filter((n) => n !== nextDep),
                   });
                 }}
                 className="w-full border border-slate-300 rounded-xl px-3.5 py-2 min-h-[42px] text-sm bg-white text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
               >
+                <option value="">선택하세요</option>
                 {validConstructNames.map((n) => (
                   <option key={n} value={n}>
                     {n}
@@ -351,7 +381,7 @@ export const StepMapping: React.FC<StepMappingProps> = ({
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-2">
                 요인추출 기준 (주성분 분석 · Varimax)

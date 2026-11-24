@@ -1,16 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import { EFAConfig, EFAResult } from '../../types/stats';
+import { EFAConfig, EFAResult, StepIssue } from '../../types/stats';
 import { fmtNum, fmtP } from '../../utils/statistics';
 import { ThesisSection } from '../../utils/thesisWriter';
 import { CopyTableButton } from '../CopyTableButton';
 import { ScreePlot } from '../ScreePlot';
+import { ScrollableTable } from '../ScrollableTable';
 import { SPSSGuideBar } from '../SPSSGuideBar';
 import { StepFooterNav } from '../StepFooterNav';
+import { StepIssuesAlert } from '../StepIssuesAlert';
 import { ThesisSentenceCard } from '../ThesisSentenceCard';
 
 interface StepFactorAnalysisProps {
   efa: EFAResult | null;
   efaConfig: EFAConfig;
+  issues?: StepIssue[];
   thesisSection?: ThesisSection;
   onUpdateConfig: (next: EFAConfig) => void;
   onPrev: () => void;
@@ -29,6 +32,7 @@ const SPSS_EFA_STEPS = [
 export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
   efa,
   efaConfig,
+  issues = [],
   thesisSection,
   onUpdateConfig,
   onPrev,
@@ -54,13 +58,16 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
   if (!efa) {
     return (
       <div className="space-y-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
-          <p className="text-sm font-medium text-slate-700">요인분석 결과가 없습니다.</p>
-          <p className="text-xs text-slate-500 mt-1">
-            0단계 개요 및 데이터에서 설문 데이터를 불러온 뒤 문항이 2개 이상 매핑되었는지 확인하세요.
-          </p>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 space-y-4">
+          <div className="text-center">
+            <p className="text-sm font-semibold text-slate-800">요인분석 결과를 산출할 수 없습니다.</p>
+            <p className="text-xs text-slate-500 mt-1">
+              0단계 개요 및 데이터에서 설문 데이터를 불러온 뒤 수치형 문항이 2개 이상 매핑되었는지 확인하세요.
+            </p>
+          </div>
+          {issues.length > 0 && <StepIssuesAlert issues={issues} title="요인분석 진단 결과" />}
         </div>
-        <StepFooterNav prevLabel="0. 개요 & 데이터" onPrev={onPrev} />
+        <StepFooterNav prevLabel="0. 개요 & 데이터" nextLabel="2. 신뢰도 분석 (α)" onPrev={onPrev} onNext={onNext} />
       </div>
     );
   }
@@ -81,12 +88,13 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
   return (
     <div className="space-y-6">
       {/* Header, SPSS Guide & Controls */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3.5 pb-4 border-b border-slate-200">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-xl font-bold tracking-tight text-slate-900">1. 요인분석 (타당성)</h2>
             <p className="text-xs sm:text-sm text-slate-600 mt-1.5 font-mono tabular-nums">
               주성분 추출(PCA) · 베리맥스(Varimax) 회전 · N = {efa.n} · 문항 {efa.p}개 · 추출 요인 {efa.numFactors}개
+              {efa.missingMode === 'pairwise' ? ' · 쌍별 결측 제외' : ''}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -121,22 +129,24 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
           note="※ 회전된 성분 행렬에서 0.5 이하 값은 삭제한 뒤 해석합니다. 우측 복사 버튼으로 엑셀에 붙여넣어 정리하세요."
         />
 
+        {issues.length > 0 && <StepIssuesAlert issues={issues} />}
+
         {/* KMO, Bartlett & Scree */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-3.5">
+          <div className="space-y-3.5 min-w-0">
             <h3 className="text-base font-bold text-slate-900">KMO와 Bartlett 구형성 검정</h3>
-            <div className="border border-slate-200/90 rounded-xl overflow-hidden">
-              <table className="w-full text-xs">
+            <ScrollableTable>
+              <table className="w-full min-w-[360px] text-xs">
                 <tbody className="divide-y divide-slate-200">
                   <tr>
-                    <td className="px-3.5 py-2.5 font-medium text-slate-700 bg-slate-50/90">
+                    <td className="px-3.5 py-2.5 font-medium text-slate-700 bg-slate-50/90 whitespace-nowrap">
                       표본적합도(KMO)
                     </td>
-                    <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-bold text-slate-900">
+                    <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-bold text-slate-900 whitespace-nowrap">
                       {fmtNum(efa.kmo, 3)}
                     </td>
                     <td
-                      className={`px-3.5 py-2.5 text-right font-semibold ${
+                      className={`px-3.5 py-2.5 text-right font-semibold whitespace-nowrap ${
                         kmoOk ? 'text-emerald-700' : 'text-amber-700'
                       }`}
                     >
@@ -144,25 +154,25 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-3.5 py-2.5 font-medium text-slate-700 bg-slate-50/90">
+                    <td className="px-3.5 py-2.5 font-medium text-slate-700 bg-slate-50/90 whitespace-nowrap">
                       Bartlett 근사 카이제곱
                     </td>
-                    <td className="px-3.5 py-2.5 text-right font-mono tabular-nums text-slate-900">
+                    <td className="px-3.5 py-2.5 text-right font-mono tabular-nums text-slate-900 whitespace-nowrap">
                       {fmtNum(efa.bartlettChi2, 3)}
                     </td>
-                    <td className="px-3.5 py-2.5 text-right text-slate-500 font-mono tabular-nums">
+                    <td className="px-3.5 py-2.5 text-right text-slate-500 font-mono tabular-nums whitespace-nowrap">
                       df = {efa.bartlettDf}
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-3.5 py-2.5 font-medium text-slate-700 bg-slate-50/90">
+                    <td className="px-3.5 py-2.5 font-medium text-slate-700 bg-slate-50/90 whitespace-nowrap">
                       유의확률 (p)
                     </td>
-                    <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-semibold text-slate-900">
+                    <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-semibold text-slate-900 whitespace-nowrap">
                       {fmtP(efa.bartlettP)}
                     </td>
                     <td
-                      className={`px-3.5 py-2.5 text-right font-semibold ${
+                      className={`px-3.5 py-2.5 text-right font-semibold whitespace-nowrap ${
                         bartlettOk ? 'text-emerald-700' : 'text-red-700'
                       }`}
                     >
@@ -170,14 +180,14 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-3.5 py-2.5 font-medium text-slate-700 bg-slate-50/90">
+                    <td className="px-3.5 py-2.5 font-medium text-slate-700 bg-slate-50/90 whitespace-nowrap">
                       공통방법편의 (Harman 1요인)
                     </td>
-                    <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-semibold text-slate-900">
+                    <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-semibold text-slate-900 whitespace-nowrap">
                       {fmtNum(efa.harmanSingleFactorPct, 2)}%
                     </td>
                     <td
-                      className={`px-3.5 py-2.5 text-right font-semibold ${
+                      className={`px-3.5 py-2.5 text-right font-semibold whitespace-nowrap ${
                         efa.harmanSingleFactorPct < 50 ? 'text-emerald-700' : 'text-amber-700'
                       }`}
                     >
@@ -186,7 +196,7 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
                   </tr>
                 </tbody>
               </table>
-            </div>
+            </ScrollableTable>
 
             <div className="border border-slate-200/90 rounded-xl overflow-hidden">
               <div className="bg-slate-50/90 px-3.5 py-2.5 border-b border-slate-200 text-xs font-bold text-slate-800">
@@ -207,14 +217,16 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
             </div>
           </div>
 
-          <ScreePlot eigenvalues={efa.eigenvalues} numFactors={efa.numFactors} />
+          <div className="min-w-0">
+            <ScreePlot eigenvalues={efa.eigenvalues} numFactors={efa.numFactors} />
+          </div>
         </div>
       </div>
 
       {/* Rotated Component Matrix */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div>
+          <div className="min-w-0">
             <h3 className="text-base sm:text-lg font-bold text-slate-900">
               회전된 성분 행렬 (Rotated Component Matrix · 추출 요인 {efa.numFactors}개)
             </h3>
@@ -225,12 +237,12 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
           <CopyTableButton headers={rotatedHeaders} rows={rotatedCopyRows} />
         </div>
 
-        <div className="overflow-x-auto border border-slate-200/90 rounded-xl">
-          <table className="w-full text-xs">
+        <ScrollableTable>
+          <table className="w-full min-w-[600px] text-xs">
             <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
               <tr>
-                <th className="px-3.5 py-2.5 text-left font-semibold">측정 문항</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">공통성</th>
+                <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap min-w-[120px]">측정 문항</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">공통성</th>
                 {factorIndices.map((fIdx) => (
                   <th key={fIdx} className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">
                     요인 {fIdx + 1}
@@ -268,11 +280,11 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollableTable>
       </div>
 
       {/* Variance Explained & Score Coefficient Matrix */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5">
           <h3 className="text-base font-bold text-slate-900">
             설명된 총 분산 (추출된 {efa.numFactors}개 요인)
@@ -280,23 +292,23 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
           <button
             type="button"
             onClick={() => setShowScoreMatrix((s) => !s)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer"
+            className="px-3 py-1.5 min-h-[38px] rounded-lg text-xs font-semibold text-blue-700 hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
           >
             {showScoreMatrix ? '요인점수 계수행렬 닫기' : '요인점수 계수행렬 보기'}
           </button>
         </div>
 
-        <div className="overflow-x-auto border border-slate-200/90 rounded-xl">
-          <table className="w-full text-xs">
+        <ScrollableTable>
+          <table className="w-full min-w-[640px] text-xs">
             <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
               <tr>
-                <th className="px-3.5 py-2.5 text-left font-semibold">성분</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">초기 고유값</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">초기 분산 %</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">초기 누적 %</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">회전 제곱합</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">회전 분산 %</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">회전 누적 %</th>
+                <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap">성분</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">초기 고유값</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">초기 분산 %</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">초기 누적 %</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">회전 제곱합</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">회전 분산 %</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">회전 누적 %</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -328,20 +340,20 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollableTable>
 
         {showScoreMatrix && efa.scoreCoeffMatrix.length > 0 && (
           <div className="mt-5 pt-5 border-t border-slate-200">
             <h4 className="text-sm font-bold text-slate-900 mb-2.5">
               성분 점수 계수행렬 (Component Score Coefficient Matrix)
             </h4>
-            <div className="overflow-x-auto border border-slate-200/90 rounded-xl">
-              <table className="w-full text-xs">
+            <ScrollableTable>
+              <table className="w-full min-w-[580px] text-xs">
                 <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
                   <tr>
-                    <th className="px-3.5 py-2.5 text-left font-semibold">문항</th>
+                    <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap min-w-[120px]">문항</th>
                     {factorIndices.map((fIdx) => (
-                      <th key={fIdx} className="px-3.5 py-2.5 text-right font-semibold">
+                      <th key={fIdx} className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">
                         요인 {fIdx + 1}
                       </th>
                     ))}
@@ -350,11 +362,11 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {efa.scoreCoeffMatrix.map((row) => (
                     <tr key={row.item}>
-                      <td className="px-3.5 py-2 font-semibold text-slate-900">{row.item}</td>
+                      <td className="px-3.5 py-2 font-semibold text-slate-900 whitespace-nowrap">{row.item}</td>
                       {row.coeffs.map((c, idx) => (
                         <td
                           key={idx}
-                          className="px-3.5 py-2 text-right font-mono tabular-nums text-slate-700"
+                          className="px-3.5 py-2 text-right font-mono tabular-nums text-slate-700 whitespace-nowrap"
                         >
                           {fmtNum(c, 3)}
                         </td>
@@ -363,7 +375,7 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollableTable>
           </div>
         )}
       </div>

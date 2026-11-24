@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Check, Copy, Table2 } from 'lucide-react';
 import { AnalysisBundle } from '../types/stats';
 import { fmtNum, fmtP, getHypothesisVerdict, sigStars } from '../utils/statistics';
+import { ScrollableTable } from './ScrollableTable';
 
 interface AcademicTablesPanelProps {
   bundle: AnalysisBundle;
@@ -139,7 +140,15 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
       commRange,
       fmtNum(rel.alpha, 3),
       fmtNum(rel.standardizedAlpha, 3),
-      rel.alpha >= 0.7 ? '우수 (≥ .70)' : rel.alpha >= 0.6 ? '양호 (≥ .60)' : '재검토',
+      rel.nItems < 2
+        ? '단일 문항'
+        : !Number.isFinite(rel.alpha)
+          ? '계산 불가'
+          : rel.alpha >= 0.7
+            ? '우수 (≥ .70)'
+            : rel.alpha >= 0.6
+              ? '양호 (≥ .60)'
+              : '재검토',
     ];
   });
   const t1Note = bundle.efa
@@ -259,7 +268,7 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
     : '';
 
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-8">
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-8">
       <div className="flex items-start gap-3 pb-4 border-b border-slate-200">
         <Table2 className="w-5 h-5 text-blue-700 shrink-0 mt-1" />
         <div>
@@ -278,8 +287,8 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
           <h4 className="text-sm sm:text-base font-bold text-slate-900">{t1Title}</h4>
           <TableCopyButton title={t1Title} headers={t1Headers} rows={t1Rows} note={t1Note} />
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-t-2 border-b-2 border-slate-900">
+        <ScrollableTable bordered={false} hintText="좌우로 스크롤하여 전체 3선표 확인">
+          <table className="w-full min-w-[640px] text-xs border-t-2 border-b-2 border-slate-900">
             <thead>
               <tr className="border-b border-slate-400 bg-slate-50/80 text-slate-800">
                 {t1Headers.map((h, i) => (
@@ -313,7 +322,7 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollableTable>
         <p className="text-xs text-slate-600 leading-relaxed">{t1Note}</p>
       </div>
 
@@ -324,8 +333,8 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
             <h4 className="text-sm sm:text-base font-bold text-slate-900">{t2Title}</h4>
             <TableCopyButton title={t2Title} headers={t2Headers} rows={t2Rows} note={t2Note} />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-t-2 border-b-2 border-slate-900">
+          <ScrollableTable bordered={false} hintText="좌우로 스크롤하여 전체 3선표 확인">
+            <table className="w-full min-w-[680px] text-xs border-t-2 border-b-2 border-slate-900">
               <thead>
                 <tr className="border-b border-slate-400 bg-slate-50/80 text-slate-800">
                   {t2Headers.map((h, i) => (
@@ -359,7 +368,7 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollableTable>
           <p className="text-xs text-slate-600 leading-relaxed">{t2Note}</p>
         </div>
       )}
@@ -371,8 +380,8 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
             <h4 className="text-sm sm:text-base font-bold text-slate-900">{t3Title}</h4>
             <TableCopyButton title={t3Title} headers={t3Headers} rows={t3Rows} note={t3Note} />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-t-2 border-b-2 border-slate-900">
+          <ScrollableTable bordered={false} hintText="좌우로 스크롤하여 전체 3선표 확인">
+            <table className="w-full min-w-[820px] text-xs border-t-2 border-b-2 border-slate-900">
               <thead>
                 <tr className="border-b border-slate-400 bg-slate-50/80 text-slate-800">
                   {t3Headers.map((h, i) => (
@@ -408,7 +417,7 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollableTable>
           <p className="text-xs text-slate-600 leading-relaxed">{t3Note}</p>
         </div>
       )}
@@ -420,8 +429,8 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
             <h4 className="text-sm sm:text-base font-bold text-slate-900">{t4Title}</h4>
             <TableCopyButton title={t4Title} headers={t4Headers} rows={t4Rows} note={t4Note} />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-t-2 border-b-2 border-slate-900">
+          <ScrollableTable bordered={false} hintText="좌우로 스크롤하여 전체 3선표 확인">
+            <table className="w-full min-w-[780px] text-xs border-t-2 border-b-2 border-slate-900">
               <thead>
                 <tr className="border-b border-slate-400 bg-slate-50/80 text-slate-800">
                   {t4Headers.map((h, i) => (
@@ -457,7 +466,7 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollableTable>
           <p className="text-xs text-slate-600 leading-relaxed">{t4Note}</p>
         </div>
       )}

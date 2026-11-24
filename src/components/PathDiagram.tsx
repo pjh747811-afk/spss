@@ -45,23 +45,28 @@ export const PathDiagram: React.FC<PathDiagramProps> = ({
   const h4MedCoeff = mediation?.step4Regression?.coeffs.find((c) => c.name === mediatorName);
 
   return (
-    <div className="w-full overflow-x-auto">
-      <div className="min-w-[680px]">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-          <h4 className="text-sm font-bold text-slate-900">
-            연구모형 경로도 (표준화 계수 β 기준)
-          </h4>
-          <span className="text-xs text-slate-600">
-            실선: p &lt; .05 (유의) · 점선: 비유의 · * p&lt;.05, ** p&lt;.01, *** p&lt;.001
-          </span>
-        </div>
+    <div className="w-full space-y-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-sm font-bold text-slate-900">
+          연구모형 경로도 (표준화 계수 β 기준)
+        </h4>
+        <span className="text-xs text-slate-600">
+          실선: p &lt; .05 (유의) · 점선: 비유의 · * p&lt;.05, ** p&lt;.01, *** p&lt;.001
+        </span>
+      </div>
 
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto bg-white border border-slate-200 rounded-xl"
-          role="img"
-          aria-label="연구모형 경로도"
-        >
+      <div className="sm:hidden text-xs text-slate-600 bg-slate-50 border border-slate-200/90 rounded-lg px-3 py-1.5">
+        ↔ 좌우로 스크롤하여 전체 경로모형 확인
+      </div>
+
+      <div className="w-full overflow-x-auto overscroll-x-contain border border-slate-200 rounded-xl bg-white">
+        <div className="min-w-[640px]">
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            className="w-full h-auto block"
+            role="img"
+            aria-label="연구모형 경로도"
+          >
           <defs>
             <marker
               id="arrow-sig"
@@ -281,7 +286,8 @@ export const PathDiagram: React.FC<PathDiagramProps> = ({
               {h3 ? ` · H3=${fmtNum(h3.adjR2, 3)}` : ''}
             </text>
           )}
-        </svg>
+          </svg>
+        </div>
       </div>
     </div>
   );

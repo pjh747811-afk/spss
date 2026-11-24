@@ -42,6 +42,36 @@ export interface EFAVarianceRow {
   rotCumPct: number;
 }
 
+export type ColumnKind = 'numeric' | 'categorical' | 'text' | 'empty' | 'constant';
+
+export interface ColumnProfile {
+  name: string;
+  kind: ColumnKind;
+  validCount: number;
+  missingCount: number;
+  uniqueCount: number;
+  numericCount: number;
+  min?: number;
+  max?: number;
+}
+
+export interface StepIssue {
+  step:
+    | 'upload'
+    | 'mapping'
+    | 'efa'
+    | 'reliability'
+    | 'composites'
+    | 'correlation'
+    | 'regression'
+    | 'mediation'
+    | 'moderation';
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  actionHint?: string;
+  variables?: string[];
+}
+
 export interface EFAResult {
   n: number;
   p: number;
@@ -56,6 +86,8 @@ export interface EFAResult {
   rotatedMatrix: EFALoadingRow[];
   scoreCoeffMatrix: { item: string; coeffs: number[] }[];
   itemNames: string[];
+  missingMode?: 'listwise' | 'pairwise';
+  excludedItems?: { item: string; reason: string }[];
 }
 
 export interface ItemTotalStat {
@@ -210,4 +242,6 @@ export interface AnalysisBundle {
   regressions: RegressionResult[];
   mediation: MediationAnalysisResult | null;
   moderation: ModerationResult | null;
+  issues?: StepIssue[];
+  columnProfiles?: ColumnProfile[];
 }

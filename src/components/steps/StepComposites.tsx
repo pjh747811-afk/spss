@@ -1,14 +1,17 @@
 import React from 'react';
-import { CompositeSummary } from '../../types/stats';
+import { CompositeSummary, StepIssue } from '../../types/stats';
 import { fmtNum } from '../../utils/statistics';
 import { ThesisSection } from '../../utils/thesisWriter';
 import { CopyTableButton } from '../CopyTableButton';
+import { ScrollableTable } from '../ScrollableTable';
 import { SPSSGuideBar } from '../SPSSGuideBar';
 import { StepFooterNav } from '../StepFooterNav';
+import { StepIssuesAlert } from '../StepIssuesAlert';
 import { ThesisSentenceCard } from '../ThesisSentenceCard';
 
 interface StepCompositesProps {
   composites: CompositeSummary[];
+  issues?: StepIssue[];
   thesisSection?: ThesisSection;
   onPrev: () => void;
   onNext: () => void;
@@ -23,6 +26,7 @@ const SPSS_COMPUTE_STEPS = [
 
 export const StepComposites: React.FC<StepCompositesProps> = ({
   composites,
+  issues = [],
   thesisSection,
   onPrev,
   onNext,
@@ -30,10 +34,11 @@ export const StepComposites: React.FC<StepCompositesProps> = ({
   if (!composites.length) {
     return (
       <div className="space-y-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
-          <p className="text-sm font-medium text-slate-700">합변수 결과가 없습니다.</p>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 space-y-4">
+          <p className="text-sm font-medium text-slate-700 text-center">합변수 결과가 없습니다.</p>
+          {issues.length > 0 && <StepIssuesAlert issues={issues} />}
         </div>
-        <StepFooterNav prevLabel="2. 신뢰도 분석 (α)" onPrev={onPrev} />
+        <StepFooterNav prevLabel="2. 신뢰도 분석 (α)" nextLabel="4. 상관분석" onPrev={onPrev} onNext={onNext} />
       </div>
     );
   }
@@ -53,7 +58,7 @@ export const StepComposites: React.FC<StepCompositesProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 pb-4 border-b border-slate-200">
           <div>
             <h2 className="text-xl font-bold tracking-tight text-slate-900">3. 변수 계산 (합변수 · 기술통계)</h2>
@@ -66,54 +71,102 @@ export const StepComposites: React.FC<StepCompositesProps> = ({
 
         <SPSSGuideBar menuPath="변환 → 변수 계산" steps={SPSS_COMPUTE_STEPS} />
 
+        {issues.length > 0 && <StepIssuesAlert issues={issues} />}
+
         <div className="rounded-xl border border-red-200/90 bg-red-50/70 px-4 py-3.5 text-xs sm:text-sm text-red-900 leading-relaxed">
           <strong className="font-bold text-red-700">가장 많이 하는 실수:</strong> 괄호를 빼먹는 것.
           괄호가 없으면 마지막 문항만 문항 수로 나눠집니다. 아래 수식 예시처럼 반드시 전체 합을 괄호로 감싼 뒤 나누세요.
         </div>
 
-        <div className="overflow-x-auto border border-slate-200/90 rounded-xl">
-          <table className="w-full text-xs">
-            <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
-              <tr>
-                <th className="px-3.5 py-3 text-left font-semibold">합변수명</th>
-                <th className="px-3.5 py-3 text-right font-semibold">문항 수</th>
-                <th className="px-3.5 py-3 text-right font-semibold">N</th>
-                <th className="px-3.5 py-3 text-right font-semibold">평균</th>
-                <th className="px-3.5 py-3 text-right font-semibold">표준편차</th>
-                <th className="px-3.5 py-3 text-right font-semibold">최솟값</th>
-                <th className="px-3.5 py-3 text-right font-semibold">최댓값</th>
-                <th className="px-3.5 py-3 text-right font-semibold">왜도</th>
-                <th className="px-3.5 py-3 text-right font-semibold">첨도</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {composites.map((c) => (
-                <tr key={c.name} className="hover:bg-slate-50/80">
-                  <td className="px-3.5 py-3 font-semibold text-slate-900 whitespace-nowrap">{c.name}합</td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums">{c.items.length}</td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">{c.n}</td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums font-bold text-slate-900">
+        {/* Mobile Card View (< sm) */}
+        <div className="sm:hidden space-y-3">
+          {composites.map((c) => (
+            <div
+              key={c.name}
+              className="border border-slate-200/90 rounded-xl p-3.5 bg-white space-y-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-bold text-slate-900">{c.name}합</span>
+                <span className="text-xs font-mono tabular-nums text-slate-500">
+                  {c.items.length}문항 · N={c.n}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 bg-slate-50/80 rounded-xl p-3 text-xs">
+                <div>
+                  <div className="text-slate-500">평균 (M)</div>
+                  <div className="font-mono tabular-nums font-bold text-slate-900 text-base mt-0.5">
                     {fmtNum(c.mean, 3)}
-                  </td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-700">
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-500">표준편차 (SD)</div>
+                  <div className="font-mono tabular-nums font-semibold text-slate-800 text-base mt-0.5">
                     {fmtNum(c.sd, 3)}
-                  </td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
-                    {fmtNum(c.min, 3)}
-                  </td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
-                    {fmtNum(c.max, 3)}
-                  </td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
-                    {fmtNum(c.skewness, 3)}
-                  </td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
-                    {fmtNum(c.kurtosis, 3)}
-                  </td>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-500">범위 (최소~최대)</div>
+                  <div className="font-mono tabular-nums text-slate-700 mt-0.5">
+                    {fmtNum(c.min, 2)} ~ {fmtNum(c.max, 2)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-500">왜도 / 첨도</div>
+                  <div className="font-mono tabular-nums text-slate-700 mt-0.5">
+                    {fmtNum(c.skewness, 2)} / {fmtNum(c.kurtosis, 2)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tablet/Desktop Table View (sm+) */}
+        <div className="hidden sm:block">
+          <ScrollableTable>
+            <table className="w-full min-w-[700px] text-xs">
+              <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
+                <tr>
+                  <th className="px-3.5 py-3 text-left font-semibold whitespace-nowrap">합변수명</th>
+                  <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">문항 수</th>
+                  <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">N</th>
+                  <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">평균</th>
+                  <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">표준편차</th>
+                  <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">최솟값</th>
+                  <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">최댓값</th>
+                  <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">왜도</th>
+                  <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">첨도</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {composites.map((c) => (
+                  <tr key={c.name} className="hover:bg-slate-50/80">
+                    <td className="px-3.5 py-3 font-semibold text-slate-900 whitespace-nowrap">{c.name}합</td>
+                    <td className="px-3.5 py-3 text-right font-mono tabular-nums whitespace-nowrap">{c.items.length}</td>
+                    <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">{c.n}</td>
+                    <td className="px-3.5 py-3 text-right font-mono tabular-nums font-bold text-slate-900 whitespace-nowrap">
+                      {fmtNum(c.mean, 3)}
+                    </td>
+                    <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-700 whitespace-nowrap">
+                      {fmtNum(c.sd, 3)}
+                    </td>
+                    <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">
+                      {fmtNum(c.min, 3)}
+                    </td>
+                    <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">
+                      {fmtNum(c.max, 3)}
+                    </td>
+                    <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">
+                      {fmtNum(c.skewness, 3)}
+                    </td>
+                    <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">
+                      {fmtNum(c.kurtosis, 3)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollableTable>
         </div>
 
         <div className="pt-2">

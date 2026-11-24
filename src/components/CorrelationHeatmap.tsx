@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MoveHorizontal } from 'lucide-react';
 import { CorrelationResult } from '../types/stats';
 import { fmtNum, fmtP, sigStars } from '../utils/statistics';
 
@@ -50,7 +51,7 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
     hovered && hovered.i !== hovered.j ? matrix[hovered.i]?.[hovered.j] : null;
 
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-4 border-b border-slate-200">
         <div>
           <h3 className="text-base font-bold text-slate-900">상관관계 히트맵 (Heatmap)</h3>
@@ -60,7 +61,7 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none min-h-[36px]">
+          <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none min-h-[38px]">
             <input
               type="checkbox"
               checked={highlightSig}
@@ -70,11 +71,11 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
             <span>유의수준(p &lt; .05) 강조</span>
           </label>
 
-          <div className="inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs">
+          <div className="grid grid-cols-2 sm:inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setTriangleOnly(false)}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-2 sm:py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer text-center ${
                 !triangleOnly
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -85,7 +86,7 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
             <button
               type="button"
               onClick={() => setTriangleOnly(true)}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-2 sm:py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer text-center ${
                 triangleOnly
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -136,11 +137,15 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
       </div>
 
       {/* Heatmap Matrix */}
-      <div className="overflow-x-auto pb-1">
+      <div className="md:hidden flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200/90 rounded-lg px-3 py-1.5">
+        <MoveHorizontal className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+        <span>좌우로 밀어서 전체 히트맵 행렬 확인</span>
+      </div>
+      <div className="overflow-x-auto pb-1 overscroll-x-contain">
         <div
           className="inline-grid gap-1.5 min-w-full"
           style={{
-            gridTemplateColumns: `minmax(124px, 156px) repeat(${names.length}, minmax(78px, 1fr))`,
+            gridTemplateColumns: `minmax(120px, 152px) repeat(${names.length}, minmax(76px, 1fr))`,
           }}
         >
           {/* Top-left corner */}

@@ -21,20 +21,28 @@ import { StepUpload } from './components/steps/StepUpload';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import {
   AnalysisBundle,
+  ColumnProfile,
   ConstructMapping,
   DataRow,
   EFAConfig,
   HypothesisConfig,
+  StepIssue,
 } from './types/stats';
-import { autoDetectConstructs, parsePastedSurveyText, parseSurveyFile } from './utils/fileIO';
+import {
+  autoDetectConstructs,
+  normalizeTabularData,
+  parsePastedSurveyText,
+  parseSurveyFile,
+} from './utils/fileIO';
 import {
   computeComposites,
   extractNumericColumn,
+  profileColumns,
   runCorrelation,
-  runEFA,
+  runEFAWithDiagnostics,
   runMediation,
   runModeration,
-  runOLS,
+  runOLSWithDiagnostics,
   runReliability,
 } from './utils/statistics';
 import { generateThesisSections } from './utils/thesisWriter';
@@ -58,14 +66,291 @@ const STEPS: {
 
 function deriveDefaultHypothesis(constructs: ConstructMapping[]): HypothesisConfig {
   const names = constructs.filter((c) => c.items.length > 0).map((c) => c.name);
+  if (names.length === 0) {
+    return { mediator: '', dependent: '', independents: [], controls: [] };
+  }
+  if (names.length === 1) {
+    return { mediator: '', dependent: names[0], independents: [], controls: [] };
+  }
+  if (names.length === 2) {
+    return { mediator: '', dependent: names[1], independents: [names[0]], controls: [] };
+  }
+
   const mediator =
-    names.find((n) => /심리|매개|capital|psy/i.test(n)) || names[1] || names[0] || '';
+    names.find((n) => /심리|매개|capital|psy|mediat|^m$/i.test(n)) || names[1] || '';
   const dependent =
-    names.find((n) => /혁신|종속|outcome|innov/i.test(n) && n !== mediator) ||
-    names[names.length - 1] ||
+    names.find((n) => n !== mediator && /혁신|종속|성과|만족|outcome|innov|dep|^y$/i.test(n)) ||
+    names.find((n) => n !== mediator && n === names[names.length - 1]) ||
+    names.find((n) => n !== mediator) ||
     '';
   const independents = names.filter((n) => n !== mediator && n !== dependent);
   return { mediator, dependent, independents, controls: [] };
+}
+
+function runUnifiedPipeline(
+  targetRows: DataRow[],
+  targetColumns: string[],
+  targetConstructs: ConstructMapping[],
+  targetHypothesis: HypothesisConfig,
+  targetEfaConfig: EFAConfig,
+  parseWarnings: string[]
+): AnalysisBundle | null {
+  if (!targetRows.length) return null;
+
+  const issues: StepIssue[] = parseWarnings.map((msg) => ({
+    step: 'upload',
+    severity: 'info',
+    message: msg,
+  }));
+
+  const columnProfiles: ColumnProfile[] = profileColumns(targetRows, targetColumns);
+  const numericColsCount = columnProfiles.filter((c) => c.kind === 'numeric').length;
+  if (numericColsCount === 0) {
+    issues.push({
+      step: 'upload',
+      severity: 'error',
+      message: '데이터에서 통계 계산이 가능한 수치형 열을 찾지 못했습니다.',
+      actionHint: '설문 응답 값이 숫자(예: 1~5점)로 저장된 파일인지 확인하세요.',
+    });
+  }
+
+  const activeConstructs = targetConstructs.filter((c) => c.items.length > 0);
+  if (!activeConstructs.length) {
+    issues.push({
+      step: 'mapping',
+      severity: 'error',
+      message: '구성개념에 연결된 측정 문항이 없어 분석을 실행할 수 없습니다.',
+      actionHint: '0단계 [변수 매핑 · 모형 설정] 탭에서 각 구성개념에 문항을 연결해 주세요.',
+    });
+    console.warn('[SPSS 연구통계] 매핑된 문항이 없어 분석을 건너뛰었습니다.', { issues });
+    return {
+      timestamp: Date.now(),
+      efa: null,
+      reliability: [],
+      composites: [],
+      correlation: { names: [], matrix: [] },
+      regressions: [],
+      mediation: null,
+      moderation: null,
+      issues,
+      columnProfiles,
+    };
+  }
+
+  const allMappedItems = Array.from(new Set(activeConstructs.flatMap((c) => c.items)));
+  const efaOut = runEFAWithDiagnostics(targetRows, {
+    ...targetEfaConfig,
+    items: allMappedItems,
+  });
+  issues.push(...efaOut.issues);
+
+  const reliability = runReliability(targetRows, activeConstructs);
+  for (const rel of reliability) {
+    if (rel.nItems < 2) {
+      issues.push({
+        step: 'reliability',
+        severity: 'info',
+        message: `'${rel.constructName}'은(는) 단일 문항(1개)으로 구성되어 Cronbach’s α를 산출하지 않습니다.`,
+        variables: rel.items,
+      });
+    } else if (rel.nValid < 2 || !Number.isFinite(rel.alpha)) {
+      issues.push({
+        step: 'reliability',
+        severity: 'warning',
+        message: `'${rel.constructName}'의 유효 응답 케이스(N=${rel.nValid})가 부족하거나 응답 분산이 0이어서 신뢰도(α)를 계산할 수 없습니다.`,
+        actionHint: '결측이 많은 문항이나 문자형 열이 포함되었는지 확인하세요.',
+        variables: rel.items,
+      });
+    }
+  }
+
+  const composites = computeComposites(targetRows, activeConstructs);
+  for (const comp of composites) {
+    if (comp.n === 0) {
+      issues.push({
+        step: 'composites',
+        severity: 'error',
+        message: `합변수 '${comp.name}합'에 유효한 수치 데이터가 없습니다(N=0).`,
+        actionHint: '연결된 문항이 문자열·날짜·결측으로만 채워져 있지 않은지 확인하세요.',
+        variables: comp.items,
+      });
+    }
+  }
+
+  const correlation = runCorrelation(composites);
+  if (composites.length < 2) {
+    issues.push({
+      step: 'correlation',
+      severity: 'info',
+      message: '상관분석 및 회귀분석을 수행하려면 최소 2개 이상의 구성개념이 필요합니다.',
+      actionHint: '0단계 [변수 매핑 · 모형 설정]에서 독립변수와 종속변수를 별도 구성개념으로 분리해 주세요.',
+    });
+  }
+
+  const getComp = (name: string) => composites.find((c) => c.name === name);
+  const medComp = getComp(targetHypothesis.mediator);
+  const depComp = getComp(targetHypothesis.dependent);
+  const indepComps = targetHypothesis.independents
+    .map((n) => getComp(n))
+    .filter((c): c is NonNullable<typeof c> => !!c);
+
+  const controlNames = (targetHypothesis.controls ?? []).filter((c) =>
+    targetRows.some((r) => r[c] !== undefined)
+  );
+  const controlCols = controlNames.map((colName) => ({
+    name: colName,
+    values: extractNumericColumn(targetRows, colName),
+  }));
+
+  const regressions = [];
+  let h1Reg = null;
+  let h3Reg = null;
+
+  if (!depComp || !indepComps.length) {
+    issues.push({
+      step: 'regression',
+      severity: 'warning',
+      message:
+        '회귀분석을 실행하려면 독립변수(X)와 종속변수(Y)가 각각 1개 이상 지정되어야 합니다.',
+      actionHint: '0단계 [변수 매핑 · 모형 설정]에서 독립변수(X)와 종속변수(Y)를 선택해 주세요.',
+    });
+  }
+
+  if (medComp && indepComps.length) {
+    const h1Out = runOLSWithDiagnostics(
+      'H1',
+      'H1',
+      `${medComp.name} ← ${indepComps.map((c) => c.name).join(' + ')}`,
+      medComp.name,
+      medComp.values,
+      [...controlCols, ...indepComps.map((c) => ({ name: c.name, values: c.values }))],
+      controlNames
+    );
+    if (h1Out.result) {
+      h1Reg = h1Out.result;
+      regressions.push(h1Reg);
+    } else if (h1Out.issue) {
+      issues.push(h1Out.issue);
+    }
+  }
+
+  if (depComp && medComp && depComp.name !== medComp.name) {
+    const h2Out = runOLSWithDiagnostics(
+      'H2',
+      'H2',
+      `${depComp.name} ← ${medComp.name}`,
+      depComp.name,
+      depComp.values,
+      [...controlCols, { name: medComp.name, values: medComp.values }],
+      controlNames
+    );
+    if (h2Out.result) {
+      regressions.push(h2Out.result);
+    } else if (h2Out.issue) {
+      issues.push(h2Out.issue);
+    }
+  }
+
+  if (depComp && indepComps.length) {
+    const h3Out = runOLSWithDiagnostics(
+      'H3',
+      'H3',
+      `${depComp.name} ← ${indepComps.map((c) => c.name).join(' + ')}`,
+      depComp.name,
+      depComp.values,
+      [...controlCols, ...indepComps.map((c) => ({ name: c.name, values: c.values }))],
+      controlNames
+    );
+    if (h3Out.result) {
+      h3Reg = h3Out.result;
+      regressions.push(h3Reg);
+    } else if (h3Out.issue) {
+      issues.push(h3Out.issue);
+    }
+  }
+
+  const mediation = runMediation(
+    composites,
+    targetHypothesis,
+    h1Reg,
+    h3Reg,
+    1000,
+    controlCols
+  );
+
+  if (!mediation && indepComps.length > 0 && depComp) {
+    if (!medComp || medComp.name === depComp.name) {
+      issues.push({
+        step: 'mediation',
+        severity: 'info',
+        message: '매개효과 검정을 실행하려면 독립·종속변수와 구분되는 매개변수(M)를 선택해야 합니다.',
+        actionHint: '0단계 [변수 매핑 · 모형 설정]에서 매개변수(M)를 별도로 지정하면 Baron & Kenny · Sobel · Bootstrap 검증이 자동 실행됩니다.',
+      });
+    } else {
+      issues.push({
+        step: 'mediation',
+        severity: 'warning',
+        message: '유효 표본 수 부족 또는 다중공선성으로 인해 4단계 매개검증 회귀식을 추정하지 못했습니다.',
+      });
+    }
+  }
+
+  let moderation = null;
+  if (
+    targetHypothesis.moderationX &&
+    targetHypothesis.moderator &&
+    targetHypothesis.moderationY
+  ) {
+    const mx = getComp(targetHypothesis.moderationX);
+    const mw = getComp(targetHypothesis.moderator);
+    const my = getComp(targetHypothesis.moderationY);
+    if (mx && mw && my) {
+      moderation = runModeration(
+        mx.name,
+        mx.values,
+        mw.name,
+        mw.values,
+        my.name,
+        my.values,
+        controlCols
+      );
+      if (!moderation) {
+        issues.push({
+          step: 'moderation',
+          severity: 'warning',
+          message:
+            '조절효과 검증에 필요한 유효 표본 수가 부족하거나 선택한 변수(X, W, Y)가 중복·상수입니다.',
+        });
+      }
+    }
+  }
+
+  console.info('[SPSS 연구통계] 분석 파이프라인 실행 완료', {
+    rows: targetRows.length,
+    constructs: activeConstructs.map((c) => `${c.name}(${c.items.length})`),
+    efaN: efaOut.result?.n ?? null,
+    regressions: regressions.map((r) => `${r.id}:N=${r.n},adjR2=${r.adjR2.toFixed(3)}`),
+    issuesCount: issues.length,
+  });
+  if (issues.some((i) => i.severity === 'error')) {
+    console.error(
+      '[SPSS 연구통계] 분석 단계 오류 감지:',
+      issues.filter((i) => i.severity === 'error')
+    );
+  }
+
+  return {
+    timestamp: Date.now(),
+    efa: efaOut.result,
+    reliability,
+    composites,
+    correlation,
+    regressions,
+    mediation,
+    moderation,
+    issues,
+    columnProfiles,
+  };
 }
 
 export default function App() {
@@ -75,6 +360,7 @@ export default function App() {
   const [fileName, setFileName] = useState<string>('');
   const [rows, setRows] = useState<DataRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
+  const [parseWarnings, setParseWarnings] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -109,138 +395,27 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  const executePipeline = useCallback(
-    (
-      targetRows: DataRow[],
-      targetConstructs: ConstructMapping[],
-      targetHypothesis: HypothesisConfig,
-      targetEfaConfig: EFAConfig
-    ) => {
-      const activeConstructs = targetConstructs.filter((c) => c.items.length > 0);
-      if (!targetRows.length || !activeConstructs.length) return;
-
-      const allMappedItems = Array.from(new Set(activeConstructs.flatMap((c) => c.items)));
-      const efaResult = runEFA(targetRows, {
-        ...targetEfaConfig,
-        items: allMappedItems,
-      });
-
-      const reliability = runReliability(targetRows, activeConstructs);
-      const composites = computeComposites(targetRows, activeConstructs);
-      const correlation = runCorrelation(composites);
-
-      const getComp = (name: string) => composites.find((c) => c.name === name);
-      const medComp = getComp(targetHypothesis.mediator);
-      const depComp = getComp(targetHypothesis.dependent);
-      const indepComps = targetHypothesis.independents
-        .map((n) => getComp(n))
-        .filter((c): c is NonNullable<typeof c> => !!c);
-
-      const controlNames = (targetHypothesis.controls ?? []).filter((c) =>
-        targetRows.some((r) => r[c] !== undefined)
-      );
-      const controlCols = controlNames.map((colName) => ({
-        name: colName,
-        values: extractNumericColumn(targetRows, colName),
-      }));
-
-      const regressions = [];
-      let h1Reg = null;
-      let h3Reg = null;
-
-      if (medComp && indepComps.length) {
-        h1Reg = runOLS(
-          'H1',
-          'H1',
-          `${medComp.name} ← ${indepComps.map((c) => c.name).join(' + ')}`,
-          medComp.name,
-          medComp.values,
-          [...controlCols, ...indepComps.map((c) => ({ name: c.name, values: c.values }))],
-          controlNames
-        );
-        if (h1Reg) regressions.push(h1Reg);
-      }
-
-      if (depComp && medComp && depComp.name !== medComp.name) {
-        const h2Reg = runOLS(
-          'H2',
-          'H2',
-          `${depComp.name} ← ${medComp.name}`,
-          depComp.name,
-          depComp.values,
-          [...controlCols, { name: medComp.name, values: medComp.values }],
-          controlNames
-        );
-        if (h2Reg) regressions.push(h2Reg);
-      }
-
-      if (depComp && indepComps.length) {
-        h3Reg = runOLS(
-          'H3',
-          'H3',
-          `${depComp.name} ← ${indepComps.map((c) => c.name).join(' + ')}`,
-          depComp.name,
-          depComp.values,
-          [...controlCols, ...indepComps.map((c) => ({ name: c.name, values: c.values }))],
-          controlNames
-        );
-        if (h3Reg) regressions.push(h3Reg);
-      }
-
-      const mediation = runMediation(
-        composites,
-        targetHypothesis,
-        h1Reg,
-        h3Reg,
-        1000,
-        controlCols
-      );
-
-      let moderation = null;
-      if (
-        targetHypothesis.moderationX &&
-        targetHypothesis.moderator &&
-        targetHypothesis.moderationY
-      ) {
-        const mx = getComp(targetHypothesis.moderationX);
-        const mw = getComp(targetHypothesis.moderator);
-        const my = getComp(targetHypothesis.moderationY);
-        if (mx && mw && my) {
-          moderation = runModeration(
-            mx.name,
-            mx.values,
-            mw.name,
-            mw.values,
-            my.name,
-            my.values,
-            controlCols
-          );
-        }
-      }
-
-      setBundle({
-        timestamp: Date.now(),
-        efa: efaResult,
-        reliability,
-        composites,
-        correlation,
-        regressions,
-        mediation,
-        moderation,
-      });
-    },
-    []
-  );
+  // Reactive unified calculation: guarantees ANY change to rows, constructs, hypothesis, or efaConfig
+  // immediately clears/recomputes bundle without ever leaving stale sample results behind.
+  useEffect(() => {
+    if (!rows.length) {
+      setBundle(null);
+      return;
+    }
+    const nextBundle = runUnifiedPipeline(
+      rows,
+      columns,
+      constructs,
+      hypothesis,
+      efaConfig,
+      parseWarnings
+    );
+    setBundle(nextBundle);
+  }, [rows, columns, constructs, hypothesis, efaConfig, parseWarnings]);
 
   const initializeDataset = useCallback(
-    (loadedRows: DataRow[], loadedCols: string[], name: string, autoRun = true) => {
-      setRows(loadedRows);
-      setColumns(loadedCols);
-      setFileName(name);
-      setErrorMsg(null);
-      setCompletedSteps(new Set([0]));
-
-      const detected = autoDetectConstructs(loadedCols);
+    (loadedRows: DataRow[], loadedCols: string[], name: string, warnings: string[] = []) => {
+      const detected = autoDetectConstructs(loadedCols, loadedRows);
       const hyp = deriveDefaultHypothesis(detected);
       const allItems = Array.from(new Set(detected.flatMap((c) => c.items)));
       const nextEfa: EFAConfig = {
@@ -251,17 +426,27 @@ export default function App() {
         sortBySize: true,
       };
 
+      console.info('[SPSS 연구통계] 데이터셋 로드 및 자동 매핑', {
+        fileName: name,
+        rowCount: loadedRows.length,
+        columnCount: loadedCols.length,
+        detectedConstructs: detected,
+        defaultHypothesis: hyp,
+        warnings,
+      });
+
+      setBundle(null);
+      setRows(loadedRows);
+      setColumns(loadedCols);
+      setFileName(name);
+      setParseWarnings(warnings);
+      setErrorMsg(null);
+      setCompletedSteps(new Set([0]));
       setConstructs(detected);
       setHypothesis(hyp);
       setEfaConfig(nextEfa);
-
-      if (autoRun && detected.length > 0) {
-        executePipeline(loadedRows, detected, hyp, nextEfa);
-      } else {
-        setBundle(null);
-      }
     },
-    [executePipeline]
+    []
   );
 
   const handleLoadSample = useCallback(async () => {
@@ -271,19 +456,22 @@ export default function App() {
       const res = await fetch('/assets/aistudio/data_items_2b48a8f0.csv');
       if (!res.ok) throw new Error('샘플 CSV 파일을 불러오지 못했습니다.');
       const text = (await res.text()).replace(/^\uFEFF/, '');
-      const parsed = Papa.parse<DataRow>(text, {
-        header: true,
-        dynamicTyping: true,
-        skipEmptyLines: true,
+      const parsed = Papa.parse<unknown[]>(text, {
+        header: false,
+        skipEmptyLines: 'greedy',
       });
-      const cleaned = parsed.data.filter((r) =>
-        Object.values(r).some((v) => v !== null && v !== undefined && String(v).trim() !== '')
+      const normalized = normalizeTabularData(parsed.data || []);
+      if (!normalized.rows.length || !normalized.columns.length) {
+        throw new Error('샘플 데이터에서 유효한 행과 변수명을 찾지 못했습니다.');
+      }
+      initializeDataset(
+        normalized.rows,
+        normalized.columns,
+        '매개효과test (기본 샘플)',
+        normalized.warnings
       );
-      const cols = (parsed.meta.fields || Object.keys(cleaned[0] || {})).filter(
-        (c) => c && String(c).trim() !== ''
-      );
-      initializeDataset(cleaned, cols, '매개효과test (기본 샘플)', true);
     } catch (err) {
+      console.error('[SPSS 연구통계] 샘플 데이터 로드 실패:', err);
       setErrorMsg(err instanceof Error ? err.message : '샘플 데이터 로드 실패');
     } finally {
       setIsLoading(false);
@@ -298,17 +486,27 @@ export default function App() {
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const { rows: parsedRows, columns: parsedCols, fileName: parsedName } =
+      const { rows: parsedRows, columns: parsedCols, fileName: parsedName, warnings } =
         await parseSurveyFile(file);
       if (!parsedRows.length || !parsedCols.length) {
-        setErrorMsg('데이터 행이나 변수명을 찾을 수 없습니다. 첫 행에 변수명이 포함된 파일인지 확인하세요.');
+        const msg =
+          '업로드한 파일에서 유효한 데이터 행 또는 변수명(첫 행 헤더)을 찾을 수 없습니다. 빈 시트나 제목만 있는 파일인지 확인해 주세요.';
+        console.error('[SPSS 연구통계] 파일 파싱 결과 비어 있음:', { fileName: file.name, warnings });
+        setErrorMsg(msg);
         return;
       }
-      initializeDataset(parsedRows, parsedCols, parsedName, true);
+      if (parsedRows.length < 3) {
+        const msg = `데이터 행이 ${parsedRows.length}행뿐입니다. 통계 분석을 수행하려면 헤더 외 최소 3행 이상의 응답 데이터가 필요합니다.`;
+        console.warn('[SPSS 연구통계] 표본 수 부족:', { fileName: file.name, rows: parsedRows.length });
+        setErrorMsg(msg);
+        return;
+      }
+      initializeDataset(parsedRows, parsedCols, parsedName, warnings);
     } catch (err) {
+      console.error('[SPSS 연구통계] 파일 업로드 파싱 오류:', file.name, err);
       setErrorMsg(
         err instanceof Error
-          ? `파일을 읽는 중 오류가 발생했습니다: ${err.message}`
+          ? `파일(${file.name})을 읽는 중 오류가 발생했습니다: ${err.message}`
           : '파일을 읽는 중 오류가 발생했습니다.'
       );
     } finally {
@@ -318,42 +516,91 @@ export default function App() {
 
   const handlePasteData = (rawText: string) => {
     setErrorMsg(null);
-    const { rows: parsedRows, columns: parsedCols } = parsePastedSurveyText(rawText);
-    if (parsedRows.length < 3 || parsedCols.length < 2) {
-      setErrorMsg('붙여넣은 데이터에서 충분한 행(3행 이상)과 변수 열(2열 이상)을 찾지 못했습니다. 첫 행에 변수명을 포함해 주세요.');
-      return;
+    try {
+      const { rows: parsedRows, columns: parsedCols, warnings } = parsePastedSurveyText(rawText);
+      if (parsedRows.length < 3 || parsedCols.length < 2) {
+        const msg = `붙여넣은 데이터에서 충분한 행(현재 ${parsedRows.length}행, 최소 3행 필요)과 변수 열(현재 ${parsedCols.length}열, 최소 2열 필요)을 찾지 못했습니다. 첫 행에 변수명을 포함해 주세요.`;
+        console.warn('[SPSS 연구통계] 붙여넣기 데이터 형식 부족:', {
+          rows: parsedRows.length,
+          cols: parsedCols.length,
+        });
+        setErrorMsg(msg);
+        return;
+      }
+      initializeDataset(parsedRows, parsedCols, '직접 붙여넣기 입력 데이터', warnings);
+    } catch (err) {
+      console.error('[SPSS 연구통계] 붙여넣기 파싱 오류:', err);
+      setErrorMsg(
+        err instanceof Error
+          ? `붙여넣은 데이터를 해석하는 중 오류가 발생했습니다: ${err.message}`
+          : '붙여넣은 데이터를 해석하는 중 오류가 발생했습니다.'
+      );
     }
-    initializeDataset(parsedRows, parsedCols, '직접 붙여넣기 입력 데이터', true);
   };
+
+  const handleChangeConstructs = useCallback(
+    (nextConstructs: ConstructMapping[]) => {
+      setConstructs(nextConstructs);
+      const nextNames = nextConstructs.filter((c) => c.items.length > 0).map((c) => c.name);
+      const nextNameSet = new Set(nextNames);
+      const nextItems = Array.from(new Set(nextConstructs.flatMap((c) => c.items)));
+
+      setEfaConfig((prev) => ({
+        ...prev,
+        items: nextItems,
+      }));
+
+      setHypothesis((prev) => {
+        const mediator = nextNameSet.has(prev.mediator) ? prev.mediator : '';
+        const dependent = nextNameSet.has(prev.dependent) ? prev.dependent : nextNames[0] || '';
+        const independents = prev.independents.filter(
+          (n) => nextNameSet.has(n) && n !== mediator && n !== dependent
+        );
+        const modX = prev.moderationX && nextNameSet.has(prev.moderationX) ? prev.moderationX : undefined;
+        const modW = prev.moderator && nextNameSet.has(prev.moderator) ? prev.moderator : undefined;
+        const modY = prev.moderationY && nextNameSet.has(prev.moderationY) ? prev.moderationY : undefined;
+
+        // If user edited constructs and left independents empty while >= 2 constructs exist, auto-fill sensible independents
+        const autoIndeps =
+          independents.length > 0
+            ? independents
+            : nextNames.filter((n) => n !== mediator && n !== dependent);
+
+        return {
+          ...prev,
+          mediator,
+          dependent,
+          independents: autoIndeps,
+          moderationX: modX,
+          moderator: modW,
+          moderationY: modY,
+        };
+      });
+    },
+    []
+  );
 
   const handleRunAnalysis = () => {
     if (!rows.length) {
+      setErrorMsg('분석할 설문 데이터가 없습니다. 먼저 파일을 업로드하거나 데이터를 붙여넣어 주세요.');
       navigateToStep(0);
       return;
     }
-    executePipeline(rows, constructs, hypothesis, efaConfig);
     setCompletedSteps(new Set([0]));
     navigateToStep(1, true);
   };
 
   const handleUpdateEfaConfig = (next: EFAConfig) => {
     setEfaConfig(next);
-    if (rows.length && constructs.length) {
-      executePipeline(rows, constructs, hypothesis, next);
-    }
   };
 
   const handleUpdateModeration = (x?: string, w?: string, y?: string) => {
-    const nextHyp: HypothesisConfig = {
-      ...hypothesis,
+    setHypothesis((prev) => ({
+      ...prev,
       moderationX: x,
       moderator: w,
       moderationY: y,
-    };
-    setHypothesis(nextHyp);
-    if (rows.length && constructs.length) {
-      executePipeline(rows, constructs, nextHyp, efaConfig);
-    }
+    }));
   };
 
   const thesisSections = useMemo(
@@ -396,7 +643,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {/* Top Bar Contract: 3 zones separated by gap-8 */}
       <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-30 no-print">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-[68px] flex items-center justify-between gap-4 lg:gap-8">
+        <div className="max-w-[1440px] mx-auto px-3 sm:px-6 h-[60px] sm:h-[68px] flex items-center justify-between gap-3 lg:gap-8">
           {/* Zone 1: Single wordmark */}
           <a
             href="#top"
@@ -404,9 +651,9 @@ export default function App() {
               e.preventDefault();
               navigateToStep(0);
             }}
-            className="inline-flex items-center gap-2.5 text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-2 text-base sm:text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0"
           >
-            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white text-xs font-mono font-bold tracking-tighter shadow-sm">
+            <span className="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-900 text-white text-xs font-mono font-bold tracking-tighter shadow-sm">
               S
             </span>
             <span>SPSS 연구통계</span>
@@ -450,7 +697,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => navigateToStep(4)}
-              className={`hover:text-slate-900 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer py-2 border-b-2 ${
+              className={`hover:text-blue-700 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer py-2 border-b-2 ${
                 activeStep === 4 || activeStep === 5
                   ? 'text-blue-700 font-semibold border-blue-700'
                   : 'border-transparent'
@@ -477,16 +724,17 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleRunAnalysis}
-                className="px-4 py-2 min-h-[40px] text-xs font-semibold text-white bg-blue-700 rounded-xl shadow-sm hover:bg-blue-800 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer"
+                className="px-3 sm:px-4 py-2 min-h-[40px] text-xs font-semibold text-white bg-blue-700 rounded-xl shadow-sm hover:bg-blue-800 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer"
               >
-                1단계부터 순서대로 시작
+                <span className="sm:hidden">순서대로 시작</span>
+                <span className="hidden sm:inline">1단계부터 순서대로 시작</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleLoadSample}
                 disabled={isLoading}
-                className="px-4 py-2 min-h-[40px] text-xs font-semibold text-white bg-slate-900 rounded-xl shadow-sm hover:bg-slate-800 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                className="px-3 sm:px-4 py-2 min-h-[40px] text-xs font-semibold text-white bg-slate-900 rounded-xl shadow-sm hover:bg-slate-800 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
               >
                 매개효과test 불러오기
               </button>
@@ -496,8 +744,8 @@ export default function App() {
       </header>
 
       {/* Mobile & Tablet horizontal step switcher */}
-      <div className="lg:hidden bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 overflow-x-auto no-print">
-        <div className="flex items-center gap-2">
+      <div className="lg:hidden bg-white border-b border-slate-200 px-3 sm:px-6 py-2 overflow-x-auto no-print">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {STEPS.map((step) => {
             const active = activeStep === step.id;
             return (
@@ -505,7 +753,7 @@ export default function App() {
                 key={step.id}
                 type="button"
                 onClick={() => navigateToStep(step.id)}
-                className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                className={`px-3 sm:px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                   active
                     ? 'bg-slate-900 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
@@ -519,7 +767,7 @@ export default function App() {
       </div>
 
       {/* Main Workspace */}
-      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-7">
+      <div className="flex-1 max-w-[1440px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-7 min-w-0">
         {/* Desktop Left Sidebar */}
         <aside className="hidden lg:block lg:col-span-3 no-print">
           <div className="sticky top-24 space-y-5">
@@ -593,24 +841,26 @@ export default function App() {
               hypothesis={hypothesis}
               efaConfig={efaConfig}
               bundle={bundle}
-              onChangeConstructs={setConstructs}
+              onChangeConstructs={handleChangeConstructs}
               onChangeHypothesis={setHypothesis}
               onChangeEFAConfig={setEfaConfig}
               onAutoDetect={() => {
-                const detected = autoDetectConstructs(columns);
+                const detected = autoDetectConstructs(columns, rows);
                 const hyp = deriveDefaultHypothesis(detected);
+                const allItems = Array.from(new Set(detected.flatMap((c) => c.items)));
                 setConstructs(detected);
                 setHypothesis(hyp);
-                executePipeline(rows, detected, hyp, efaConfig);
+                setEfaConfig((prev) => ({
+                  ...prev,
+                  items: allItems,
+                  fixedFactors: Math.max(1, detected.length),
+                }));
               }}
               onFileUpload={handleFileUpload}
               onPasteData={handlePasteData}
               onLoadSample={handleLoadSample}
               onRunAnalysis={handleRunAnalysis}
-              onNext={() => {
-                executePipeline(rows, constructs, hypothesis, efaConfig);
-                navigateToStep(1, true);
-              }}
+              onNext={() => navigateToStep(1, true)}
             />
           )}
 
@@ -618,6 +868,7 @@ export default function App() {
             <StepFactorAnalysis
               efa={bundle?.efa ?? null}
               efaConfig={efaConfig}
+              issues={bundle?.issues?.filter((i) => i.step === 'efa' || i.step === 'mapping') ?? []}
               thesisSection={efaRelThesis}
               onUpdateConfig={handleUpdateEfaConfig}
               onPrev={() => navigateToStep(0)}
@@ -628,6 +879,7 @@ export default function App() {
           {activeStep === 2 && (
             <StepReliability
               rows={bundle?.reliability ?? []}
+              issues={bundle?.issues?.filter((i) => i.step === 'reliability' || i.step === 'mapping') ?? []}
               thesisSection={efaRelThesis}
               onPrev={() => navigateToStep(1)}
               onNext={() => navigateToStep(3, true)}
@@ -637,6 +889,7 @@ export default function App() {
           {activeStep === 3 && (
             <StepComposites
               composites={bundle?.composites ?? []}
+              issues={bundle?.issues?.filter((i) => i.step === 'composites' || i.step === 'mapping') ?? []}
               thesisSection={descCorrThesis}
               onPrev={() => navigateToStep(2)}
               onNext={() => navigateToStep(4, true)}
@@ -647,6 +900,7 @@ export default function App() {
             <StepCorrelation
               correlation={bundle?.correlation ?? { names: [], matrix: [] }}
               composites={bundle?.composites ?? []}
+              issues={bundle?.issues?.filter((i) => i.step === 'correlation' || i.step === 'mapping') ?? []}
               thesisSection={descCorrThesis}
               onPrev={() => navigateToStep(3)}
               onNext={() => navigateToStep(5, true)}
@@ -660,6 +914,15 @@ export default function App() {
               moderation={bundle?.moderation ?? null}
               composites={bundle?.composites ?? []}
               hypothesis={hypothesis}
+              issues={
+                bundle?.issues?.filter(
+                  (i) =>
+                    i.step === 'regression' ||
+                    i.step === 'mediation' ||
+                    i.step === 'moderation' ||
+                    i.step === 'mapping'
+                ) ?? []
+              }
               regressionThesis={regThesis}
               mediationThesis={medThesis}
               moderationThesis={modThesis}

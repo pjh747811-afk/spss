@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
-import { CompositeSummary, CorrelationResult } from '../../types/stats';
+import { CompositeSummary, CorrelationResult, StepIssue } from '../../types/stats';
 import { fmtNum, fmtP, sigStars } from '../../utils/statistics';
 import { ThesisSection } from '../../utils/thesisWriter';
 import { CopyTableButton } from '../CopyTableButton';
 import { CorrelationHeatmap } from '../CorrelationHeatmap';
+import { ScrollableTable } from '../ScrollableTable';
 import { SPSSGuideBar } from '../SPSSGuideBar';
 import { StepFooterNav } from '../StepFooterNav';
+import { StepIssuesAlert } from '../StepIssuesAlert';
 import { ThesisSentenceCard } from '../ThesisSentenceCard';
 
 interface StepCorrelationProps {
   correlation: CorrelationResult;
   composites: CompositeSummary[];
+  issues?: StepIssue[];
   thesisSection?: ThesisSection;
   onPrev: () => void;
   onNext: () => void;
@@ -26,6 +29,7 @@ const SPSS_CORR_STEPS = [
 export const StepCorrelation: React.FC<StepCorrelationProps> = ({
   correlation,
   composites,
+  issues = [],
   thesisSection,
   onPrev,
   onNext,
@@ -35,10 +39,11 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
   if (!correlation.names.length) {
     return (
       <div className="space-y-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
-          <p className="text-sm font-medium text-slate-700">상관분석 결과가 없습니다.</p>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 space-y-4">
+          <p className="text-sm font-medium text-slate-700 text-center">상관분석 결과가 없습니다.</p>
+          {issues.length > 0 && <StepIssuesAlert issues={issues} />}
         </div>
-        <StepFooterNav prevLabel="3. 변수 계산 (합변수)" onPrev={onPrev} />
+        <StepFooterNav prevLabel="3. 변수 계산 (합변수)" nextLabel="5. 회귀분석 (H1~H3)" onPrev={onPrev} onNext={onNext} />
       </div>
     );
   }
@@ -63,7 +68,7 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3.5 pb-4 border-b border-slate-200">
           <div>
             <h2 className="text-xl font-bold tracking-tight text-slate-900">4. 상관분석 (Pearson 이변량 상관)</h2>
@@ -72,11 +77,11 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <div className="inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs">
+            <div className="grid grid-cols-2 sm:inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => setShowDetails(false)}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`px-3 py-2 sm:py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer text-center ${
                   !showDetails
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -87,7 +92,7 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
               <button
                 type="button"
                 onClick={() => setShowDetails(true)}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`px-3 py-2 sm:py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer text-center ${
                   showDetails
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -105,11 +110,13 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
           steps={SPSS_CORR_STEPS}
         />
 
-        <div className="overflow-x-auto border border-slate-200/90 rounded-xl">
-          <table className="w-full text-xs">
+        {issues.length > 0 && <StepIssuesAlert issues={issues} />}
+
+        <ScrollableTable hintText="좌우로 스크롤하여 전체 상관행렬 확인">
+          <table className="w-full min-w-[600px] text-xs">
             <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
               <tr>
-                <th className="px-3.5 py-3 text-left font-semibold whitespace-nowrap">변수</th>
+                <th className="px-3.5 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">변수</th>
                 {showDetails && (
                   <>
                     <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">평균</th>
@@ -191,7 +198,7 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollableTable>
 
         <p className="text-xs text-slate-600 leading-relaxed">
           {showDetails

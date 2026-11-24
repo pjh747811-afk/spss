@@ -23,20 +23,20 @@ export const ThesisSentenceCard: React.FC<ThesisSentenceCardProps> = ({ section 
   };
 
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-4 border-b border-slate-200">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <BookOpen className="w-5 h-5 text-blue-700 shrink-0" />
           <h3 className="text-base font-bold text-slate-900">
             결과표 읽기 &amp; 논문에 쓰는 문장 ({section.title})
           </h3>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <div className="inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs">
+          <div className="grid grid-cols-2 sm:inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setStyle('standard')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-2 sm:py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer text-center ${
                 style === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -45,7 +45,7 @@ export const ThesisSentenceCard: React.FC<ThesisSentenceCardProps> = ({ section 
             <button
               type="button"
               onClick={() => setStyle('concise')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-2 sm:py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer text-center ${
                 style === 'concise' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >

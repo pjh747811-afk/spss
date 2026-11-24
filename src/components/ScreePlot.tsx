@@ -35,23 +35,24 @@ export const ScreePlot: React.FC<ScreePlotProps> = ({ eigenvalues, numFactors })
   for (let v = 0; v <= maxEv; v += step) yTicks.push(v);
 
   return (
-    <div className="w-full overflow-x-auto">
-      <div className="min-w-[500px]">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-          <h4 className="text-sm font-bold text-slate-900">스크리 도표 (Scree Plot)</h4>
-          <span className="text-xs text-slate-600 font-mono tabular-nums font-medium">
-            {hovered !== null
-              ? `요인 ${hovered + 1} · 고유값(Eigenvalue) = ${fmtNum(eigenvalues[hovered], 3)}`
-              : `고유값 > 1.0 기준 추출 요인 ${numFactors}개`}
-          </span>
-        </div>
+    <div className="w-full space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-sm font-bold text-slate-900">스크리 도표 (Scree Plot)</h4>
+        <span className="text-xs text-slate-600 font-mono tabular-nums font-medium">
+          {hovered !== null
+            ? `요인 ${hovered + 1} · 고유값(Eigenvalue) = ${fmtNum(eigenvalues[hovered], 3)}`
+            : `고유값 > 1.0 기준 추출 요인 ${numFactors}개`}
+        </span>
+      </div>
 
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto bg-white border border-slate-200 rounded-xl"
-          role="img"
-          aria-label="요인분석 스크리 도표"
-        >
+      <div className="w-full overflow-x-auto overscroll-x-contain border border-slate-200 rounded-xl bg-white">
+        <div className="min-w-[460px]">
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            className="w-full h-auto block"
+            role="img"
+            aria-label="요인분석 스크리 도표"
+          >
           {/* Horizontal grid lines */}
           {yTicks.map((t) => (
             <g key={t}>
@@ -137,7 +138,8 @@ export const ScreePlot: React.FC<ScreePlotProps> = ({ eigenvalues, numFactors })
               </g>
             );
           })}
-        </svg>
+          </svg>
+        </div>
       </div>
     </div>
   );

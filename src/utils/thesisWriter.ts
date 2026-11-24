@@ -504,35 +504,57 @@ export function generateThesisSections(
 
     const modClause = bundle.moderation
       ? bundle.moderation.significant
-        ? ` 다섯째, 조절효과 검증 결과 ${josa(bundle.moderation.wName, '은/는')} ${bundle.moderation.xName}→${bundle.moderation.yName} 관계를 통계적으로 유의하게 조절하는 것으로 확인되었다(ΔR² = ${fmtBound(bundle.moderation.r2Change, 3)}, ${fmtShortP(bundle.moderation.pChange)}).`
-        : ` 다섯째, ${bundle.moderation.wName}의 조절효과(${bundle.moderation.xName}×${bundle.moderation.wName})는 통계적으로 유의하지 않았다(${fmtShortP(bundle.moderation.pChange)}).`
+        ? `조절효과 검증 결과 ${josa(bundle.moderation.wName, '은/는')} ${bundle.moderation.xName}→${bundle.moderation.yName} 관계를 통계적으로 유의하게 조절하는 것으로 확인되었다(ΔR² = ${fmtBound(bundle.moderation.r2Change, 3)}, ${fmtShortP(bundle.moderation.pChange)}).`
+        : `${bundle.moderation.wName}의 조절효과(${bundle.moderation.xName}×${bundle.moderation.wName})는 통계적으로 유의하지 않았다(${fmtShortP(bundle.moderation.pChange)}).`
       : '';
 
-    const stdConclusion = `이상의 실증분석 결과를 종합하면 다음과 같다. 첫째, ${
-      h1 && h1Sigs.length
-        ? `${josa(h1Sigs.join(', '), '은/는', h1Sigs[h1Sigs.length - 1])} ${josa(hypothesis.mediator, '을/를')} 통계적으로 유의하게 향상시키는 핵심 선행요인으로 확인되었다(H1 ${h1Verdict}).`
-        : 'H1 모형에서 독립변수가 매개변수에 미치는 영향을 검증하였다.'
-    } 둘째, ${
-      h2 && h2.anova.p < 0.05
-        ? `${josa(hypothesis.mediator, '은/는')} ${hypothesis.dependent}에 유의한 정(+)의 영향을 미쳐(β = ${fmtBound(h2.coeffs.find((c) => c.name !== '(상수)' && !(h2.controls ?? []).includes(c.name))?.beta, 3)}, ${fmtShortP(h2.anova.p)}) H2가 채택되었다.`
-        : 'H2 모형의 경로를 확인하였다.'
-    } 셋째, ${
-      h3 && h3Sigs.length
-        ? `${hypothesis.dependent}에 직접적으로 유의한 영향을 미치는 요인은 ${josa(h3Sigs.join(', '), '으로/로', h3Sigs[h3Sigs.length - 1])} 확인되었다(H3 ${h3Verdict}).`
-        : 'H3 모형의 직접효과를 검증하였다.'
-    }${
-      medSigs.length
-        ? ` 넷째, 매개효과 검증 결과 ${medSigs.join(', ')} 경로에서 ${hypothesis.mediator}의 유의한 매개 작용이 입증되어, 선행요인이 ${josa(hypothesis.mediator, '을/를')} 통해 ${hypothesis.dependent}으로 이어지는 심리적·과정적 메커니즘을 실증적으로 확인하였다.`
-        : ''
-    }${modClause}`;
+    const parts: string[] = [];
+    if (h1) {
+      parts.push(
+        h1Sigs.length
+          ? `${josa(h1Sigs.join(', '), '은/는', h1Sigs[h1Sigs.length - 1])} ${josa(hypothesis.mediator, '을/를')} 통계적으로 유의하게 향상시키는 핵심 선행요인으로 확인되었다(H1 ${h1Verdict}).`
+          : `H1 모형에서 독립변수가 ${hypothesis.mediator}에 미치는 영향을 검증하였으나 유의한 변수가 확인되지 않았다(H1 ${h1Verdict}).`
+      );
+    }
+    if (h2) {
+      parts.push(
+        h2.anova.p < 0.05
+          ? `${josa(hypothesis.mediator, '은/는')} ${hypothesis.dependent}에 유의한 영향을 미쳐(β = ${fmtBound(h2.coeffs.find((c) => c.name !== '(상수)' && !(h2.controls ?? []).includes(c.name))?.beta, 3)}, ${fmtShortP(h2.anova.p)}) H2가 채택되었다.`
+          : `H2 모형에서 ${josa(hypothesis.mediator, '이/가')} ${hypothesis.dependent}에 미치는 영향은 통계적으로 유의하지 않았다(H2 ${getHypothesisVerdict(h2)}).`
+      );
+    }
+    if (h3) {
+      parts.push(
+        h3Sigs.length
+          ? `${hypothesis.dependent}에 직접적으로 유의한 영향을 미치는 요인은 ${josa(h3Sigs.join(', '), '으로/로', h3Sigs[h3Sigs.length - 1])} 확인되었다(H3 ${h3Verdict}).`
+          : `${hypothesis.dependent}에 대한 H3 직접모형에서 통계적으로 유의한 독립변수가 확인되지 않았다(H3 ${h3Verdict}).`
+      );
+    }
+    if (medSigs.length) {
+      parts.push(
+        `매개효과 검증 결과 ${medSigs.join(', ')} 경로에서 ${hypothesis.mediator}의 유의한 매개 작용이 입증되어, 선행요인이 ${josa(hypothesis.mediator, '을/를')} 통해 ${hypothesis.dependent}으로 이어지는 과정적 메커니즘을 실증적으로 확인하였다.`
+      );
+    }
+    if (modClause) {
+      parts.push(modClause.trim());
+    }
 
-    const conciseConclusion = `요약: H1(${h1Sigs.join(', ') || '검증'} → ${hypothesis.mediator}, ${h1Verdict}), H2(${hypothesis.mediator} → ${hypothesis.dependent}), H3(${h3Sigs.join(', ') || '검증'} → ${hypothesis.dependent}, ${h3Verdict})${
-      medSigs.length ? `, 매개경로(${medSigs.join(', ')})` : ''
-    }${
-      bundle.moderation
-        ? `, 조절효과(${bundle.moderation.xName}×${bundle.moderation.wName}: ${bundle.moderation.significant ? '유의' : '비유의'})`
-        : ''
-    }가 검증되었다.`;
+    const ordinals = ['첫째, ', '둘째, ', '셋째, ', '넷째, ', '다섯째, '];
+    const stdConclusion = `이상의 실증분석 결과를 종합하면 다음과 같다. ${parts
+      .map((p, idx) => `${ordinals[idx] ?? ''}${p}`)
+      .join(' ')}`;
+
+    const conciseParts: string[] = [];
+    if (h1) conciseParts.push(`H1(${h1Sigs.join(', ') || '검증'} → ${hypothesis.mediator}, ${h1Verdict})`);
+    if (h2) conciseParts.push(`H2(${hypothesis.mediator} → ${hypothesis.dependent}, ${getHypothesisVerdict(h2)})`);
+    if (h3) conciseParts.push(`H3(${h3Sigs.join(', ') || '검증'} → ${hypothesis.dependent}, ${h3Verdict})`);
+    if (medSigs.length) conciseParts.push(`매개경로(${medSigs.join(', ')})`);
+    if (bundle.moderation) {
+      conciseParts.push(
+        `조절효과(${bundle.moderation.xName}×${bundle.moderation.wName}: ${bundle.moderation.significant ? '유의' : '비유의'})`
+      );
+    }
+    const conciseConclusion = `요약: ${conciseParts.join(', ')} 결과를 확인하였다.`;
 
     sections.push({
       id: 'conclusion',

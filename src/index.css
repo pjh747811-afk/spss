@@ -6,17 +6,19 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    max-width: 100%;
+    overflow-x: clip;
   }
 
   @media (max-width: 1024px) {
     html {
-      font-size: 18.5px;
+      font-size: 18px;
     }
   }
 
   @media (max-width: 640px) {
     html {
-      font-size: 17.5px;
+      font-size: 16.5px;
     }
   }
 
@@ -25,6 +27,20 @@
     background-color: #f8fafc;
     color: #0f172a;
     line-height: 1.6;
+    max-width: 100%;
+    overflow-x: clip;
+    word-break: keep-all;
+  }
+
+  table {
+    writing-mode: horizontal-tb;
+  }
+
+  th,
+  td {
+    writing-mode: horizontal-tb;
+    word-break: keep-all;
+    overflow-wrap: normal;
   }
 
   code,

@@ -1,4 +1,6 @@
 import {
+  ColumnKind,
+  ColumnProfile,
   CompositeSummary,
   ConstructMapping,
   CorrelationCell,
@@ -17,15 +19,108 @@ import {
   RegressionResult,
   ReliabilityRow,
   SimpleSlopePoint,
+  StepIssue,
 } from '../types/stats';
 
-// ---------- Basic Numeric Helpers ----------
+// ---------- Basic Numeric Helpers & Column Profiling ----------
+
+const MISSING_MARKERS = new Set([
+  '',
+  '.',
+  '-',
+  'na',
+  'n/a',
+  'nan',
+  'null',
+  'none',
+  '#n/a',
+  '#value!',
+  '#ref!',
+  '#div/0!',
+  '결측',
+  '미응답',
+  '무응답',
+]);
 
 export function toNum(val: unknown): number | null {
-  if (val === null || val === undefined || val === '') return null;
+  if (val === null || val === undefined || typeof val === 'boolean') return null;
   if (typeof val === 'number') return Number.isFinite(val) ? val : null;
-  const parsed = Number(String(val).trim());
-  return Number.isFinite(parsed) ? parsed : null;
+  if (val instanceof Date) return null;
+
+  const cleaned = String(val)
+    .replace(/[\u00A0\u3000]/g, ' ')
+    .trim();
+  if (!cleaned) return null;
+  if (MISSING_MARKERS.has(cleaned.toLowerCase())) return null;
+
+  // Match plain numbers, comma-grouped numbers ("1,234.5"), or Likert suffix ("5점")
+  if (/^[+-]?\s*(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:\s*점)?$/.test(cleaned)) {
+    const normalized = cleaned.replace(/,/g, '').replace(/\s*점$/, '').replace(/\s+/g, '');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  // Scientific notation like 1.2e-3
+  if (/^[+-]?\d+(?:\.\d+)?[eE][+-]?\d+$/.test(cleaned)) {
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+export function profileColumns(rows: DataRow[], columns: string[]): ColumnProfile[] {
+  return columns.map((name) => {
+    let validCount = 0;
+    let missingCount = 0;
+    let numericCount = 0;
+    let minVal = Infinity;
+    let maxVal = -Infinity;
+    const uniqueSet = new Set<string>();
+
+    for (let i = 0; i < rows.length; i++) {
+      const raw = rows[i]?.[name];
+      const str = raw === null || raw === undefined ? '' : String(raw).replace(/[\u00A0\u3000]/g, ' ').trim();
+      if (!str || MISSING_MARKERS.has(str.toLowerCase())) {
+        missingCount++;
+        continue;
+      }
+      validCount++;
+      uniqueSet.add(str);
+
+      const num = toNum(raw);
+      if (num !== null) {
+        numericCount++;
+        if (num < minVal) minVal = num;
+        if (num > maxVal) maxVal = num;
+      }
+    }
+
+    const uniqueCount = uniqueSet.size;
+    let kind: ColumnKind = 'text';
+    if (validCount === 0) {
+      kind = 'empty';
+    } else if (uniqueCount <= 1) {
+      kind = 'constant';
+    } else if (numericCount / validCount >= 0.7) {
+      kind = 'numeric';
+    } else if (uniqueCount <= 20) {
+      kind = 'categorical';
+    } else {
+      kind = 'text';
+    }
+
+    return {
+      name,
+      kind,
+      validCount,
+      missingCount,
+      uniqueCount,
+      numericCount,
+      min: Number.isFinite(minVal) ? minVal : undefined,
+      max: Number.isFinite(maxVal) ? maxVal : undefined,
+    };
+  });
 }
 
 export function extractNumericColumn(rows: DataRow[], colName: string): (number | null)[] {
@@ -328,70 +423,225 @@ function jacobiEigen(A_in: number[][]): { eigenvalues: number[]; eigenvectors: n
 
 // ---------- 1. Exploratory Factor Analysis (PCA + Varimax) ----------
 
-export function runEFA(rows: DataRow[], config: EFAConfig): EFAResult | null {
-  const items = config.items;
-  const p = items.length;
-  if (p < 2 || rows.length < 3) return null;
+export function runEFAWithDiagnostics(
+  rows: DataRow[],
+  config: EFAConfig
+): { result: EFAResult | null; issues: StepIssue[] } {
+  const issues: StepIssue[] = [];
+  const rawItems = Array.from(new Set(config.items));
 
-  // Listwise deletion across selected items
-  const matrix: number[][] = [];
+  if (rawItems.length < 2) {
+    issues.push({
+      step: 'efa',
+      severity: 'error',
+      message: '요인분석을 실행하려면 최소 2개 이상의 측정 문항이 매핑되어야 합니다.',
+      actionHint: '0단계 [변수 매핑 · 모형 설정] 탭에서 수치형 설문 문항을 2개 이상 선택해 주세요.',
+      variables: rawItems,
+    });
+    return { result: null, issues };
+  }
+
+  if (rows.length < 3) {
+    issues.push({
+      step: 'efa',
+      severity: 'error',
+      message: `표본 수(N=${rows.length})가 너무 적어 요인분석을 실행할 수 없습니다 (최소 3케이스 필요).`,
+      actionHint: '3행 이상의 응답 데이터가 포함된 파일을 업로드해 주세요.',
+    });
+    return { result: null, issues };
+  }
+
+  // Pre-screen each selected item for numeric validity & variance
+  const validItems: string[] = [];
+  const excludedItems: { item: string; reason: string }[] = [];
+
+  for (const item of rawItems) {
+    const vals: number[] = [];
+    for (let r = 0; r < rows.length; r++) {
+      const v = toNum(rows[r][item]);
+      if (v !== null) vals.push(v);
+    }
+    if (vals.length < 3) {
+      excludedItems.push({ item, reason: `유효 수치 부족(N=${vals.length})` });
+    } else {
+      const s = std(vals, 1);
+      if (!Number.isFinite(s) || s <= 1e-12) {
+        excludedItems.push({ item, reason: '모든 응답값 동일(분산 0)' });
+      } else {
+        validItems.push(item);
+      }
+    }
+  }
+
+  if (excludedItems.length > 0) {
+    issues.push({
+      step: 'efa',
+      severity: 'warning',
+      message: `수치형이 아니거나 분산이 0인 문항 ${excludedItems.length}개를 요인분석에서 자동 제외했습니다: ${excludedItems
+        .map((e) => `${e.item}(${e.reason})`)
+        .join(', ')}`,
+      actionHint: '문자형/날짜/고정값 열이 문항에 포함되었다면 [변수 매핑 · 모형 설정]에서 제외해 주세요.',
+      variables: excludedItems.map((e) => e.item),
+    });
+  }
+
+  const p = validItems.length;
+  if (p < 2) {
+    issues.push({
+      step: 'efa',
+      severity: 'error',
+      message: '유효한 수치형 문항이 2개 미만이어서 요인분석을 진행할 수 없습니다.',
+      actionHint: '숫자 응답(예: 리커트 1~5점)으로 구성된 문항을 2개 이상 지정해 주세요.',
+      variables: rawItems,
+    });
+    return { result: null, issues };
+  }
+
+  // Try listwise deletion first
+  const listwiseMatrix: number[][] = [];
   for (let r = 0; r < rows.length; r++) {
     const vals: number[] = [];
     let ok = true;
     for (let c = 0; c < p; c++) {
-      const v = toNum(rows[r][items[c]]);
+      const v = toNum(rows[r][validItems[c]]);
       if (v === null) {
         ok = false;
         break;
       }
       vals.push(v);
     }
-    if (ok) matrix.push(vals);
+    if (ok) listwiseMatrix.push(vals);
   }
 
-  const n = matrix.length;
-  if (n < p + 2) return null;
-
-  // Means and SDs
-  const means = Array(p).fill(0);
-  const sds = Array(p).fill(0);
-  for (let j = 0; j < p; j++) {
-    const col = matrix.map((r) => r[j]);
-    means[j] = mean(col);
-    sds[j] = std(col, 1);
-    if (!sds[j] || sds[j] === 0) return null;
-  }
-
-  // Correlation Matrix R
+  let n = listwiseMatrix.length;
+  let missingMode: 'listwise' | 'pairwise' = 'listwise';
   const R = Array.from({ length: p }, () => Array(p).fill(0));
-  for (let i = 0; i < p; i++) {
-    R[i][i] = 1;
-    for (let j = i + 1; j < p; j++) {
-      let s = 0;
-      for (let r = 0; r < n; r++) {
-        s += ((matrix[r][i] - means[i]) / sds[i]) * ((matrix[r][j] - means[j]) / sds[j]);
+  let activeItems = validItems;
+
+  if (n >= Math.max(3, p + 1)) {
+    // Check listwise column variance (a column can become constant after listwise filtering)
+    const nonConstIndices: number[] = [];
+    for (let j = 0; j < p; j++) {
+      const col = listwiseMatrix.map((r) => r[j]);
+      const s = std(col, 1);
+      if (!Number.isFinite(s) || s <= 1e-12) {
+        excludedItems.push({ item: validItems[j], reason: '결측 제외 후 분산 0' });
+      } else {
+        nonConstIndices.push(j);
       }
-      const corr = Math.max(-1, Math.min(1, s / (n - 1)));
-      R[i][j] = corr;
-      R[j][i] = corr;
     }
+
+    if (nonConstIndices.length < 2) {
+      issues.push({
+        step: 'efa',
+        severity: 'error',
+        message: '결측값 제거 후 분산이 0이 아닌 문항이 2개 미만입니다.',
+        actionHint: '결측이 집중된 문항을 제외하거나 응답 데이터를 보완해 주세요.',
+      });
+      return { result: null, issues };
+    }
+
+    activeItems = nonConstIndices.map((idx) => validItems[idx]);
+    const filteredMatrix = listwiseMatrix.map((row) => nonConstIndices.map((idx) => row[idx]));
+    const pActive = activeItems.length;
+    const means = Array(pActive).fill(0);
+    const sds = Array(pActive).fill(0);
+    for (let j = 0; j < pActive; j++) {
+      const col = filteredMatrix.map((r) => r[j]);
+      means[j] = mean(col);
+      sds[j] = std(col, 1);
+    }
+
+    for (let i = 0; i < pActive; i++) {
+      R[i][i] = 1;
+      for (let j = i + 1; j < pActive; j++) {
+        let s = 0;
+        for (let r = 0; r < n; r++) {
+          s +=
+            ((filteredMatrix[r][i] - means[i]) / sds[i]) *
+            ((filteredMatrix[r][j] - means[j]) / sds[j]);
+        }
+        const corr = Math.max(-1, Math.min(1, s / (n - 1)));
+        R[i][j] = corr;
+        R[j][i] = corr;
+      }
+    }
+  } else {
+    // Fallback to Pairwise Correlation Matrix when scattered missing values shrink listwise N
+    missingMode = 'pairwise';
+    const numericCols = validItems.map((item) => rows.map((r) => toNum(r[item])));
+    let minPairN = Infinity;
+    let invalidPairs = 0;
+
+    for (let i = 0; i < p; i++) {
+      R[i][i] = 1;
+      for (let j = i + 1; j < p; j++) {
+        const xi: number[] = [];
+        const xj: number[] = [];
+        for (let r = 0; r < rows.length; r++) {
+          const vi = numericCols[i][r];
+          const vj = numericCols[j][r];
+          if (vi !== null && vj !== null) {
+            xi.push(vi);
+            xj.push(vj);
+          }
+        }
+        const { r: corr, n: pairN } = pearsonPair(xi, xj);
+        if (pairN < minPairN) minPairN = pairN;
+        if (!Number.isFinite(corr)) {
+          invalidPairs++;
+          R[i][j] = 0;
+          R[j][i] = 0;
+        } else {
+          R[i][j] = corr;
+          R[j][i] = corr;
+        }
+      }
+    }
+
+    const rowHasAny = rows.filter((r) => validItems.some((it) => toNum(r[it]) !== null)).length;
+    n = Number.isFinite(minPairN) && minPairN > 0 ? minPairN : rowHasAny;
+
+    if (n < 3 || invalidPairs > (p * (p - 1)) / 4) {
+      issues.push({
+        step: 'efa',
+        severity: 'error',
+        message: `결측값을 제외한 유효 표본 수(목록별 N=${listwiseMatrix.length}, 쌍별 최소 N=${
+          Number.isFinite(minPairN) ? minPairN : 0
+        })가 문항 수(${p}개) 대비 부족하여 요인분석을 수행할 수 없습니다.`,
+        actionHint: '결측이 많은 문항 또는 빈 행을 정리하거나 더 많은 응답 표본을 업로드해 주세요.',
+        variables: validItems,
+      });
+      return { result: null, issues };
+    }
+
+    issues.push({
+      step: 'efa',
+      severity: 'warning',
+      message: `일부 문항에 결측값이 포함되어 목록별 완전 케이스(N=${listwiseMatrix.length})가 문항 수(${p}개)보다 적으므로, SPSS 쌍별 제외(Pairwise, 최소 N=${n}) 방식으로 상관계수 행렬을 산출했습니다.`,
+      actionHint: '결측이 집중된 문항이 있다면 [변수 매핑 · 모형 설정]에서 해당 문항을 점검하세요.',
+    });
   }
+
+  const pActive = activeItems.length;
+  const activeR =
+    pActive === R.length ? R : R.slice(0, pActive).map((row) => row.slice(0, pActive));
 
   // KMO & Bartlett's Test
-  const invResult = invertMatrix(R);
+  const invResult = invertMatrix(activeR);
   let kmo = NaN;
   let bartlettChi2 = NaN;
-  const bartlettDf = (p * (p - 1)) / 2;
+  const bartlettDf = (pActive * (pActive - 1)) / 2;
   let bartlettP = NaN;
 
   if (invResult) {
     const { inv, det } = invResult;
     let sumR2 = 0;
     let sumA2 = 0;
-    for (let i = 0; i < p; i++) {
-      for (let j = 0; j < p; j++) {
+    for (let i = 0; i < pActive; i++) {
+      for (let j = 0; j < pActive; j++) {
         if (i === j) continue;
-        sumR2 += R[i][j] * R[i][j];
+        sumR2 += activeR[i][j] * activeR[i][j];
         const denom = Math.sqrt(Math.max(1e-12, inv[i][i] * inv[j][j]));
         const aij = -inv[i][j] / denom;
         sumA2 += aij * aij;
@@ -399,21 +649,29 @@ export function runEFA(rows: DataRow[], config: EFAConfig): EFAResult | null {
     }
     kmo = sumR2 + sumA2 > 0 ? sumR2 / (sumR2 + sumA2) : NaN;
     if (det > 0) {
-      bartlettChi2 = -(n - 1 - (2 * p + 5) / 6) * Math.log(det);
+      bartlettChi2 = -(n - 1 - (2 * pActive + 5) / 6) * Math.log(det);
       bartlettP = chiSquareP(bartlettChi2, bartlettDf);
     }
+  } else {
+    issues.push({
+      step: 'efa',
+      severity: 'warning',
+      message:
+        '문항 간 상관행렬이 특이행렬(완전 다중공선성 또는 표본 수 < 문항 수)이어서 KMO·Bartlett 검정치는 산출되지 않았으나 주성분 요인부하량은 계산되었습니다.',
+      actionHint: '완전히 동일한 문항을 제거하거나 표본 수를 늘리면 KMO/Bartlett 검정이 정상 산출됩니다.',
+    });
   }
 
   // Eigen decomposition
-  const { eigenvalues, eigenvectors } = jacobiEigen(R);
+  const { eigenvalues, eigenvectors } = jacobiEigen(activeR);
   let numFactors =
     config.extractionMode === 'fixed'
-      ? Math.max(1, Math.min(p, config.fixedFactors))
+      ? Math.max(1, Math.min(pActive, config.fixedFactors))
       : eigenvalues.filter((ev) => ev > 1.0).length;
   if (numFactors < 1) numFactors = 1;
 
-  // Initial loading matrix L (p x m)
-  const L = Array.from({ length: p }, (_, i) =>
+  // Initial loading matrix L (pActive x m)
+  const L = Array.from({ length: pActive }, (_, i) =>
     Array.from({ length: numFactors }, (__, j) => {
       const ev = Math.max(0, eigenvalues[j]);
       return eigenvectors[j][i] * Math.sqrt(ev);
@@ -436,7 +694,7 @@ export function runEFA(rows: DataRow[], config: EFAConfig): EFAResult | null {
           let v = 0;
           let a = 0;
           let b = 0;
-          for (let i = 0; i < p; i++) {
+          for (let i = 0; i < pActive; i++) {
             const x = Rmat[i][j];
             const y = Rmat[i][k];
             const ui = x * x - y * y;
@@ -446,14 +704,14 @@ export function runEFA(rows: DataRow[], config: EFAConfig): EFAResult | null {
             a += ui * ui - vi * vi;
             b += 2 * ui * vi;
           }
-          const num = b - (2 * u * v) / p;
-          const den = a - (u * u - v * v) / p;
+          const num = b - (2 * u * v) / pActive;
+          const den = a - (u * u - v * v) / pActive;
           const angle = 0.25 * Math.atan2(num, den);
           if (Math.abs(angle) > maxAngle) maxAngle = Math.abs(angle);
           if (Math.abs(angle) > 1e-10) {
             const cosA = Math.cos(angle);
             const sinA = Math.sin(angle);
-            for (let i = 0; i < p; i++) {
+            for (let i = 0; i < pActive; i++) {
               const x = Rmat[i][j];
               const y = Rmat[i][k];
               Rmat[i][j] = x * cosA + y * sinA;
@@ -474,7 +732,7 @@ export function runEFA(rows: DataRow[], config: EFAConfig): EFAResult | null {
     let ss = 0;
     let maxIdx = 0;
     let maxAbs = 0;
-    for (let i = 0; i < p; i++) {
+    for (let i = 0; i < pActive; i++) {
       ss += rotated[i][j] ** 2;
       if (Math.abs(rotated[i][j]) > maxAbs) {
         maxAbs = Math.abs(rotated[i][j]);
@@ -488,11 +746,11 @@ export function runEFA(rows: DataRow[], config: EFAConfig): EFAResult | null {
   rotated = rotated.map((row) => factorInfos.map((fi) => row[fi.origIdx] * fi.sign));
 
   // Variance Explained Table
-  const totalVar = p;
+  const totalVar = pActive;
   let initCum = 0;
   let rotCum = 0;
   const varianceExplained: EFAVarianceRow[] = [];
-  for (let i = 0; i < p; i++) {
+  for (let i = 0; i < pActive; i++) {
     const initEv = Math.max(0, eigenvalues[i]);
     const initPct = (initEv / totalVar) * 100;
     initCum += initPct;
@@ -516,7 +774,7 @@ export function runEFA(rows: DataRow[], config: EFAConfig): EFAResult | null {
   }
 
   // Build Rotated Component Matrix Rows
-  let rotatedMatrix: EFALoadingRow[] = items.map((item, i) => {
+  let rotatedMatrix: EFALoadingRow[] = activeItems.map((item, i) => {
     const loadings = rotated[i];
     let dominantFactor = 0;
     let maxAbsLoading = 0;
@@ -547,36 +805,45 @@ export function runEFA(rows: DataRow[], config: EFAConfig): EFAResult | null {
   const scoreCoeffMatrix: { item: string; coeffs: number[] }[] = [];
   if (invResult) {
     const { inv } = invResult;
-    for (let i = 0; i < p; i++) {
+    for (let i = 0; i < pActive; i++) {
       const coeffs: number[] = [];
       for (let f = 0; f < numFactors; f++) {
         let sum = 0;
-        for (let k = 0; k < p; k++) {
+        for (let k = 0; k < pActive; k++) {
           sum += inv[i][k] * rotated[k][f];
         }
         coeffs.push(sum);
       }
-      scoreCoeffMatrix.push({ item: items[i], coeffs });
+      scoreCoeffMatrix.push({ item: activeItems[i], coeffs });
     }
   }
 
   const harmanSingleFactorPct = varianceExplained[0]?.initialPctVar ?? NaN;
 
   return {
-    n,
-    p,
-    numFactors,
-    kmo,
-    bartlettChi2,
-    bartlettDf,
-    bartlettP,
-    harmanSingleFactorPct,
-    eigenvalues,
-    varianceExplained,
-    rotatedMatrix,
-    scoreCoeffMatrix,
-    itemNames: items,
+    result: {
+      n,
+      p: pActive,
+      numFactors,
+      kmo,
+      bartlettChi2,
+      bartlettDf,
+      bartlettP,
+      harmanSingleFactorPct,
+      eigenvalues,
+      varianceExplained,
+      rotatedMatrix,
+      scoreCoeffMatrix,
+      itemNames: activeItems,
+      missingMode,
+      excludedItems: excludedItems.length ? excludedItems : undefined,
+    },
+    issues,
   };
+}
+
+export function runEFA(rows: DataRow[], config: EFAConfig): EFAResult | null {
+  return runEFAWithDiagnostics(rows, config).result;
 }
 
 // ---------- 2. Reliability Analysis (Cronbach's Alpha) ----------
@@ -767,7 +1034,7 @@ export function runCorrelation(composites: CompositeSummary[]): CorrelationResul
 
 // ---------- 5. OLS Linear Regression (SPSS Format) ----------
 
-export function runOLS(
+export function runOLSWithDiagnostics(
   id: string,
   hypothesis: string,
   label: string,
@@ -775,8 +1042,18 @@ export function runOLS(
   yRaw: (number | null)[],
   xCols: { name: string; values: (number | null)[] }[],
   controls: string[] = []
-): RegressionResult | null {
-  if (!xCols.length) return null;
+): { result: RegressionResult | null; issue?: StepIssue } {
+  if (!xCols.length) {
+    return {
+      result: null,
+      issue: {
+        step: 'regression',
+        severity: 'warning',
+        message: `${hypothesis}(${label}): 독립변수가 선택되지 않아 회귀분석을 실행할 수 없습니다.`,
+        actionHint: '0단계 [변수 매핑 · 모형 설정]에서 독립변수를 지정해 주세요.',
+      },
+    };
+  }
 
   const rows: { y: number; x: number[] }[] = [];
   for (let i = 0; i < yRaw.length; i++) {
@@ -798,7 +1075,53 @@ export function runOLS(
   const n = rows.length;
   const k = xCols.length;
   const p = k + 1;
-  if (n <= p) return null;
+  if (n <= p) {
+    return {
+      result: null,
+      issue: {
+        step: 'regression',
+        severity: 'error',
+        message: `${hypothesis}(${label}): 결측 제외 후 유효 표본 수(N=${n})가 추정 모수 수(독립·통제변수 ${k}개 + 상수 = ${p}) 이하이므로 회귀분석이 불가능합니다.`,
+        actionHint: `최소 ${p + 1}개 이상의 완전한 수치 응답 행이 필요하며, 결측이 많은 변수를 확인해 주세요.`,
+        variables: [dependentName, ...xCols.map((c) => c.name)],
+      },
+    };
+  }
+
+  // Check zero-variance columns before inversion
+  const ySample = rows.map((r) => r.y);
+  const ySdCheck = std(ySample, 1);
+  if (!Number.isFinite(ySdCheck) || ySdCheck <= 1e-12) {
+    return {
+      result: null,
+      issue: {
+        step: 'regression',
+        severity: 'error',
+        message: `${hypothesis}(${label}): 종속변수 '${dependentName}'의 유효 표본 값이 모두 동일하여(분산 0) 회귀식을 추정할 수 없습니다.`,
+        variables: [dependentName],
+      },
+    };
+  }
+
+  const constPredictors: string[] = [];
+  for (let j = 0; j < k; j++) {
+    const colSd = std(rows.map((r) => r.x[j + 1]), 1);
+    if (!Number.isFinite(colSd) || colSd <= 1e-12) {
+      constPredictors.push(xCols[j].name);
+    }
+  }
+  if (constPredictors.length > 0) {
+    return {
+      result: null,
+      issue: {
+        step: 'regression',
+        severity: 'error',
+        message: `${hypothesis}(${label}): 투입 변수 [${constPredictors.join(', ')}]의 값이 모두 동일(분산 0)하여 회귀계수를 계산할 수 없습니다.`,
+        actionHint: '해당 변수의 데이터 값이나 통제/독립변수 구성을 확인해 주세요.',
+        variables: constPredictors,
+      },
+    };
+  }
 
   // Build X'X and X'y
   const XtX = Array.from({ length: p }, () => Array(p).fill(0));
@@ -813,7 +1136,18 @@ export function runOLS(
   }
 
   const invRes = invertMatrix(XtX);
-  if (!invRes) return null;
+  if (!invRes) {
+    return {
+      result: null,
+      issue: {
+        step: 'regression',
+        severity: 'error',
+        message: `${hypothesis}(${label}): 투입된 변수 간 완전 다중공선성(동일하거나 선형 종속인 변수)이 존재하여 역행렬 계산에 실패했습니다.`,
+        actionHint: '중복된 문항이나 동일한 변수(예: 합변수와 구성 문항 동시 투입)가 없는지 확인해 주세요.',
+        variables: xCols.map((c) => c.name),
+      },
+    };
+  }
   const { inv } = invRes;
 
   const b = Array(p).fill(0);
@@ -917,33 +1251,47 @@ export function runOLS(
   }
 
   return {
-    id,
-    hypothesis,
-    label,
-    dependent: dependentName,
-    independents: xCols.map((c) => c.name).filter((n) => !controls.includes(n)),
-    controls,
-    n,
-    k,
-    r,
-    r2,
-    adjR2,
-    stdErrorEst,
-    durbinWatson,
-    anova: {
-      ssReg,
-      dfReg,
-      msReg,
-      ssRes,
-      dfRes,
-      msRes,
-      ssTot,
-      dfTot,
-      f,
-      p: modelP,
+    result: {
+      id,
+      hypothesis,
+      label,
+      dependent: dependentName,
+      independents: xCols.map((c) => c.name).filter((n) => !controls.includes(n)),
+      controls,
+      n,
+      k,
+      r,
+      r2,
+      adjR2,
+      stdErrorEst,
+      durbinWatson,
+      anova: {
+        ssReg,
+        dfReg,
+        msReg,
+        ssRes,
+        dfRes,
+        msRes,
+        ssTot,
+        dfTot,
+        f,
+        p: modelP,
+      },
+      coeffs,
     },
-    coeffs,
   };
+}
+
+export function runOLS(
+  id: string,
+  hypothesis: string,
+  label: string,
+  dependentName: string,
+  yRaw: (number | null)[],
+  xCols: { name: string; values: (number | null)[] }[],
+  controls: string[] = []
+): RegressionResult | null {
+  return runOLSWithDiagnostics(id, hypothesis, label, dependentName, yRaw, xCols, controls).result;
 }
 
 // ---------- 6. Mediation Analysis (Baron & Kenny + Sobel + Bootstrap 95% CI) ----------

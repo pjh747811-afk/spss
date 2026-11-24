@@ -5,13 +5,16 @@ import {
   MediationAnalysisResult,
   ModerationResult,
   RegressionResult,
+  StepIssue,
 } from '../../types/stats';
 import { fmtNum, fmtP, getHypothesisVerdict, sigStars } from '../../utils/statistics';
 import { ThesisSection } from '../../utils/thesisWriter';
 import { CopyTableButton } from '../CopyTableButton';
 import { PathDiagram } from '../PathDiagram';
+import { ScrollableTable } from '../ScrollableTable';
 import { SPSSGuideBar } from '../SPSSGuideBar';
 import { StepFooterNav } from '../StepFooterNav';
+import { StepIssuesAlert } from '../StepIssuesAlert';
 import { ThesisSentenceCard } from '../ThesisSentenceCard';
 
 interface StepRegressionProps {
@@ -20,6 +23,7 @@ interface StepRegressionProps {
   moderation: ModerationResult | null;
   composites: CompositeSummary[];
   hypothesis: HypothesisConfig;
+  issues?: StepIssue[];
   regressionThesis?: ThesisSection;
   mediationThesis?: ThesisSection;
   moderationThesis?: ThesisSection;
@@ -58,7 +62,7 @@ const RegressionBlock: React.FC<{ reg: RegressionResult }> = ({ reg }) => {
   const verdict = reg.id === 'H4' || reg.id.startsWith('MOD') ? null : getHypothesisVerdict(reg);
 
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 pb-4 border-b border-slate-200">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -96,7 +100,7 @@ const RegressionBlock: React.FC<{ reg: RegressionResult }> = ({ reg }) => {
       </div>
 
       {/* Model Summary Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 py-4 border-b border-slate-200 text-left">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 py-4 border-b border-slate-200 text-left">
         <div>
           <div className="text-xs text-slate-600">수정된 R² (설명력)</div>
           <div className="text-lg sm:text-xl font-bold font-mono tabular-nums text-slate-900 mt-0.5">
@@ -126,9 +130,9 @@ const RegressionBlock: React.FC<{ reg: RegressionResult }> = ({ reg }) => {
             {fmtP(reg.anova.p)}
           </div>
         </div>
-        <div>
+        <div className="col-span-2 sm:col-span-1 pt-2 sm:pt-0 border-t border-slate-100 sm:border-t-0 flex items-center justify-between sm:block">
           <div className="text-xs text-slate-600">Durbin-Watson</div>
-          <div className="text-lg sm:text-xl font-bold font-mono tabular-nums text-slate-800 mt-0.5">
+          <div className="text-lg sm:text-xl font-bold font-mono tabular-nums text-slate-800 sm:mt-0.5">
             {fmtNum(reg.durbinWatson, 3)}
           </div>
         </div>
@@ -136,62 +140,62 @@ const RegressionBlock: React.FC<{ reg: RegressionResult }> = ({ reg }) => {
 
       {/* Optional ANOVA table */}
       {showAnova && (
-        <div className="mt-4 overflow-x-auto border border-slate-200/90 rounded-xl">
-          <table className="w-full text-xs">
+        <ScrollableTable className="mt-4">
+          <table className="w-full min-w-[560px] text-xs">
             <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
               <tr>
-                <th className="px-3.5 py-2.5 text-left font-semibold">ANOVA 모형</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">제곱합</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">자유도</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">평균제곱</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">F</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">유의확률(p)</th>
+                <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap">ANOVA 모형</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">제곱합</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">자유도</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">평균제곱</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">F</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">유의확률(p)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               <tr>
-                <td className="px-3.5 py-2.5 font-medium text-slate-800">회귀모형</td>
-                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">{fmtNum(reg.anova.ssReg, 3)}</td>
-                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">{reg.anova.dfReg}</td>
-                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">{fmtNum(reg.anova.msReg, 3)}</td>
-                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-semibold">{fmtNum(reg.anova.f, 3)}</td>
-                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-semibold">{fmtP(reg.anova.p)}</td>
+                <td className="px-3.5 py-2.5 font-medium text-slate-800 whitespace-nowrap">회귀모형</td>
+                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{fmtNum(reg.anova.ssReg, 3)}</td>
+                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{reg.anova.dfReg}</td>
+                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{fmtNum(reg.anova.msReg, 3)}</td>
+                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-semibold whitespace-nowrap">{fmtNum(reg.anova.f, 3)}</td>
+                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-semibold whitespace-nowrap">{fmtP(reg.anova.p)}</td>
               </tr>
               <tr>
-                <td className="px-3.5 py-2.5 font-medium text-slate-800">잔차</td>
-                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">{fmtNum(reg.anova.ssRes, 3)}</td>
-                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">{reg.anova.dfRes}</td>
-                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">{fmtNum(reg.anova.msRes, 3)}</td>
+                <td className="px-3.5 py-2.5 font-medium text-slate-800 whitespace-nowrap">잔차</td>
+                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{fmtNum(reg.anova.ssRes, 3)}</td>
+                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{reg.anova.dfRes}</td>
+                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{fmtNum(reg.anova.msRes, 3)}</td>
                 <td className="px-3.5 py-2.5 text-right text-slate-300">—</td>
                 <td className="px-3.5 py-2.5 text-right text-slate-300">—</td>
               </tr>
               <tr className="bg-slate-50/50">
-                <td className="px-3.5 py-2.5 font-semibold text-slate-900">합계</td>
-                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">{fmtNum(reg.anova.ssTot, 3)}</td>
-                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">{reg.anova.dfTot}</td>
+                <td className="px-3.5 py-2.5 font-semibold text-slate-900 whitespace-nowrap">합계</td>
+                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{fmtNum(reg.anova.ssTot, 3)}</td>
+                <td className="px-3.5 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{reg.anova.dfTot}</td>
                 <td className="px-3.5 py-2.5 text-right text-slate-300">—</td>
                 <td className="px-3.5 py-2.5 text-right text-slate-300">—</td>
                 <td className="px-3.5 py-2.5 text-right text-slate-300">—</td>
               </tr>
             </tbody>
           </table>
-        </div>
+        </ScrollableTable>
       )}
 
       {/* Coefficients Table */}
-      <div className="mt-4 overflow-x-auto border border-slate-200/90 rounded-xl">
-        <table className="w-full text-xs">
+      <ScrollableTable className="mt-4">
+        <table className="w-full min-w-[760px] text-xs">
           <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
             <tr>
-              <th className="px-3.5 py-3 text-left font-semibold">변수</th>
-              <th className="px-3.5 py-3 text-right font-semibold">비표준화 B</th>
-              <th className="px-3.5 py-3 text-right font-semibold">표준오차</th>
-              <th className="px-3.5 py-3 text-right font-semibold">표준화 β</th>
-              <th className="px-3.5 py-3 text-right font-semibold">t</th>
-              <th className="px-3.5 py-3 text-right font-semibold">유의확률(p)</th>
-              <th className="px-3.5 py-3 text-right font-semibold">공차</th>
-              <th className="px-3.5 py-3 text-right font-semibold">VIF</th>
-              <th className="px-3.5 py-3 text-left font-semibold">판정</th>
+              <th className="px-3.5 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">변수</th>
+              <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">비표준화 B</th>
+              <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">표준오차</th>
+              <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">표준화 β</th>
+              <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">t</th>
+              <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">유의확률(p)</th>
+              <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">공차</th>
+              <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">VIF</th>
+              <th className="px-3.5 py-3 text-left font-semibold whitespace-nowrap">판정</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -216,25 +220,25 @@ const RegressionBlock: React.FC<{ reg: RegressionResult }> = ({ reg }) => {
                     {c.name}
                     {isCtrl && <span className="ml-1.5 text-xs font-normal text-slate-500">(통제)</span>}
                   </td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums">{fmtNum(c.b, 3)}</td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-500">{fmtNum(c.se, 3)}</td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums font-bold text-slate-900">
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums whitespace-nowrap">{fmtNum(c.b, 3)}</td>
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-500 whitespace-nowrap">{fmtNum(c.se, 3)}</td>
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums font-bold text-slate-900 whitespace-nowrap">
                     {c.beta !== null ? fmtNum(c.beta, 3) : '—'}
                   </td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums">{fmtNum(c.t, 2)}</td>
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums whitespace-nowrap">{fmtNum(c.t, 2)}</td>
                   <td
-                    className={`px-3.5 py-3 text-right font-mono tabular-nums font-semibold ${
+                    className={`px-3.5 py-3 text-right font-mono tabular-nums font-semibold whitespace-nowrap ${
                       !isConst && sig ? 'text-emerald-700' : 'text-slate-500'
                     }`}
                   >
                     {fmtP(c.p)}
                     {!isConst && sigStars(c.p)}
                   </td>
-                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">
                     {c.tolerance !== null ? fmtNum(c.tolerance, 3) : '—'}
                   </td>
                   <td
-                    className={`px-3.5 py-3 text-right font-mono tabular-nums ${
+                    className={`px-3.5 py-3 text-right font-mono tabular-nums whitespace-nowrap ${
                       vifWarn ? 'text-red-700 font-bold' : 'text-slate-600'
                     }`}
                   >
@@ -252,7 +256,7 @@ const RegressionBlock: React.FC<{ reg: RegressionResult }> = ({ reg }) => {
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollableTable>
 
       {/* Interpretation line */}
       <div className="mt-4 text-xs sm:text-sm text-slate-700 leading-relaxed space-y-1.5">
@@ -294,6 +298,7 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
   moderation,
   composites,
   hypothesis,
+  issues = [],
   regressionThesis,
   mediationThesis,
   moderationThesis,
@@ -304,10 +309,16 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
   if (!regressions.length) {
     return (
       <div className="space-y-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
-          <p className="text-sm font-medium text-slate-700">회귀분석 결과가 없습니다.</p>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 space-y-4">
+          <div className="text-center">
+            <p className="text-sm font-semibold text-slate-800">회귀분석 결과를 산출할 수 없습니다.</p>
+            <p className="text-xs text-slate-500 mt-1">
+              0단계 [변수 매핑 · 모형 설정]에서 독립변수(X)와 종속변수(Y)가 서로 다른 유효 수치 구성개념으로 연결되었는지 확인하세요.
+            </p>
+          </div>
+          {issues.length > 0 && <StepIssuesAlert issues={issues} title="회귀·매개분석 진단" />}
         </div>
-        <StepFooterNav prevLabel="4. 상관분석" onPrev={onPrev} />
+        <StepFooterNav prevLabel="4. 상관분석" nextLabel="6. 결과 요약 & 논문 문장 작성" onPrev={onPrev} onNext={onNext} />
       </div>
     );
   }
@@ -371,7 +382,7 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
   return (
     <div className="space-y-6">
       {/* Header, SPSS Guide & Path Diagram */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
         <div className="pb-4 border-b border-slate-200">
           <h2 className="text-xl font-bold tracking-tight text-slate-900">5. 회귀분석 (H1~H3) · 매개 및 조절효과 검증</h2>
           <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">
@@ -383,6 +394,8 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
           menuPath="분석 → 회귀분석 → 선형 · 통계량: R제곱 변화량, 공선성 진단, Durbin-Watson"
           steps={SPSS_REG_STEPS}
         />
+
+        {issues.length > 0 && <StepIssuesAlert issues={issues} />}
 
         <PathDiagram
           h1={h1}
@@ -407,7 +420,7 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
         <div className="space-y-6">
           <RegressionBlock reg={mediation.step4Regression} />
 
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 pb-4 border-b border-slate-200">
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">
@@ -425,19 +438,19 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
               <CopyTableButton headers={medHeaders} rows={medRows} />
             </div>
 
-            <div className="mt-4 overflow-x-auto border border-slate-200/90 rounded-xl">
-              <table className="w-full text-xs">
+            <ScrollableTable className="mt-4">
+              <table className="w-full min-w-[840px] text-xs">
                 <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
                   <tr>
-                    <th className="px-3.5 py-3 text-left font-semibold">독립변수 (X)</th>
-                    <th className="px-3.5 py-3 text-right font-semibold">a (X→M)</th>
-                    <th className="px-3.5 py-3 text-right font-semibold">b (M→Y)</th>
-                    <th className="px-3.5 py-3 text-right font-semibold">총효과 (c)</th>
-                    <th className="px-3.5 py-3 text-right font-semibold">직접효과 (c’)</th>
-                    <th className="px-3.5 py-3 text-right font-semibold">간접효과 (a×b)</th>
-                    <th className="px-3.5 py-3 text-right font-semibold">Sobel Z (p)</th>
-                    <th className="px-3.5 py-3 text-right font-semibold">Boot 95% CI</th>
-                    <th className="px-3.5 py-3 text-left font-semibold">매개 판정</th>
+                    <th className="px-3.5 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">독립변수 (X)</th>
+                    <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">a (X→M)</th>
+                    <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">b (M→Y)</th>
+                    <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">총효과 (c)</th>
+                    <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">직접효과 (c’)</th>
+                    <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">간접효과 (a×b)</th>
+                    <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">Sobel Z (p)</th>
+                    <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">Boot 95% CI</th>
+                    <th className="px-3.5 py-3 text-left font-semibold whitespace-nowrap">매개 판정</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -501,7 +514,7 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollableTable>
             <p className="mt-3.5 text-xs text-slate-600 leading-relaxed">
               비표준화 회귀계수(B) 기준. Bootstrap 95% 신뢰구간([LLCI, ULCI])에 0이 포함되지 않으면 간접효과가 통계적으로 유의합니다.
             </p>
@@ -514,7 +527,7 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
       {/* Hierarchical Moderation Analysis Block */}
       {compNames.length >= 3 && (
         <div className="space-y-6">
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3.5 pb-4 border-b border-slate-200">
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">
@@ -619,7 +632,7 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
             {moderation ? (
               <div className="space-y-5">
                 {/* Summary Strip */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 py-4 border-y border-slate-200">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 py-4 border-y border-slate-200">
                   <div>
                     <div className="text-xs text-slate-600">1단계 → 2단계 ΔR²</div>
                     <div className="text-lg sm:text-xl font-bold font-mono tabular-nums text-slate-900 mt-0.5">
@@ -655,10 +668,10 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
                       {fmtNum(moderation.interactionCoeff.t, 2)} ({fmtP(moderation.interactionCoeff.p)})
                     </div>
                   </div>
-                  <div>
+                  <div className="col-span-2 sm:col-span-1 pt-2 sm:pt-0 border-t border-slate-100 sm:border-t-0 flex items-center justify-between sm:block">
                     <div className="text-xs text-slate-600">조절효과 판정</div>
                     <div
-                      className={`text-lg sm:text-xl font-bold mt-0.5 ${
+                      className={`text-lg sm:text-xl font-bold sm:mt-0.5 ${
                         moderation.significant ? 'text-emerald-700' : 'text-slate-500'
                       }`}
                     >
@@ -668,17 +681,17 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
                 </div>
 
                 {/* Step 2 Coefficients */}
-                <div className="overflow-x-auto border border-slate-200/90 rounded-xl">
-                  <table className="w-full text-xs">
+                <ScrollableTable>
+                  <table className="w-full min-w-[620px] text-xs">
                     <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
                       <tr>
-                        <th className="px-3.5 py-2.5 text-left font-semibold">2단계 위계적 회귀 변수</th>
-                        <th className="px-3.5 py-2.5 text-right font-semibold">B</th>
-                        <th className="px-3.5 py-2.5 text-right font-semibold">SE</th>
-                        <th className="px-3.5 py-2.5 text-right font-semibold">β</th>
-                        <th className="px-3.5 py-2.5 text-right font-semibold">t</th>
-                        <th className="px-3.5 py-2.5 text-right font-semibold">p</th>
-                        <th className="px-3.5 py-2.5 text-right font-semibold">VIF</th>
+                        <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap min-w-[140px]">2단계 위계적 회귀 변수</th>
+                        <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">B</th>
+                        <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">SE</th>
+                        <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">β</th>
+                        <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">t</th>
+                        <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">p</th>
+                        <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">VIF</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -714,41 +727,41 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
                       })}
                     </tbody>
                   </table>
-                </div>
+                </ScrollableTable>
 
                 {/* Simple Slopes Table */}
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 mb-2.5">
                     조절변수({moderation.wName}) 수준별 단순기울기 (Aiken &amp; West Simple Slopes)
                   </h4>
-                  <div className="overflow-x-auto border border-slate-200/90 rounded-xl">
-                    <table className="w-full text-xs">
+                  <ScrollableTable>
+                    <table className="w-full min-w-[580px] text-xs">
                       <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
                         <tr>
-                          <th className="px-3.5 py-2.5 text-left font-semibold">조절변수 수준</th>
-                          <th className="px-3.5 py-2.5 text-right font-semibold">{moderation.wName} 값</th>
-                          <th className="px-3.5 py-2.5 text-right font-semibold">단순기울기 (B)</th>
-                          <th className="px-3.5 py-2.5 text-right font-semibold">표준오차 (SE)</th>
-                          <th className="px-3.5 py-2.5 text-right font-semibold">t</th>
-                          <th className="px-3.5 py-2.5 text-right font-semibold">유의확률 (p)</th>
+                          <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap">조절변수 수준</th>
+                          <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">{moderation.wName} 값</th>
+                          <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">단순기울기 (B)</th>
+                          <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">표준오차 (SE)</th>
+                          <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">t</th>
+                          <th className="px-3.5 py-2.5 text-right font-semibold whitespace-nowrap">유의확률 (p)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {moderation.simpleSlopes.map((s) => (
                           <tr key={s.level} className="hover:bg-slate-50/70">
-                            <td className="px-3.5 py-2.5 font-semibold text-slate-900">{s.level}</td>
-                            <td className="px-3.5 py-2.5 text-right font-mono tabular-nums text-slate-600">
+                            <td className="px-3.5 py-2.5 font-semibold text-slate-900 whitespace-nowrap">{s.level}</td>
+                            <td className="px-3.5 py-2.5 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">
                               {fmtNum(s.wValue, 2)}
                             </td>
-                            <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-bold text-slate-900">
+                            <td className="px-3.5 py-2.5 text-right font-mono tabular-nums font-bold text-slate-900 whitespace-nowrap">
                               {fmtNum(s.slope, 3)}
                             </td>
-                            <td className="px-3.5 py-2.5 text-right font-mono tabular-nums text-slate-500">
+                            <td className="px-3.5 py-2.5 text-right font-mono tabular-nums text-slate-500 whitespace-nowrap">
                               {fmtNum(s.se, 3)}
                             </td>
-                            <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">{fmtNum(s.t, 2)}</td>
+                            <td className="px-3.5 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{fmtNum(s.t, 2)}</td>
                             <td
-                              className={`px-3.5 py-2.5 text-right font-mono tabular-nums font-semibold ${
+                              className={`px-3.5 py-2.5 text-right font-mono tabular-nums font-semibold whitespace-nowrap ${
                                 s.p < 0.05 ? 'text-emerald-700' : 'text-slate-400'
                               }`}
                             >
@@ -759,7 +772,7 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </ScrollableTable>
                 </div>
               </div>
             ) : (
