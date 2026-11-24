@@ -63,20 +63,20 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-4 border-b border-slate-200">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3.5 pb-4 border-b border-slate-200">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">4. 상관분석 (Pearson 이변량 상관)</h2>
-            <p className="text-xs text-slate-500 mt-1">
+            <h2 className="text-xl font-bold tracking-tight text-slate-900">4. 상관분석 (Pearson 이변량 상관)</h2>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1.5">
               생성된 합변수 간의 상관계수(r) 및 판별타당성을 확인합니다.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg text-xs">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs">
               <button
                 type="button"
                 onClick={() => setShowDetails(false)}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   !showDetails
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -87,7 +87,7 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
               <button
                 type="button"
                 onClick={() => setShowDetails(true)}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   showDetails
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
@@ -105,19 +105,19 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
           steps={SPSS_CORR_STEPS}
         />
 
-        <div className="overflow-x-auto border border-slate-200 rounded-lg">
+        <div className="overflow-x-auto border border-slate-200/90 rounded-xl">
           <table className="w-full text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-700">
+            <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
               <tr>
-                <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">변수</th>
+                <th className="px-3.5 py-3 text-left font-semibold whitespace-nowrap">변수</th>
                 {showDetails && (
                   <>
-                    <th className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">평균</th>
-                    <th className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">표준편차</th>
+                    <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">평균</th>
+                    <th className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">표준편차</th>
                   </>
                 )}
                 {names.map((n, i) => (
-                  <th key={n} className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">
+                  <th key={n} className="px-3.5 py-3 text-right font-semibold whitespace-nowrap">
                     {i + 1}. {n}
                   </th>
                 ))}
@@ -128,15 +128,15 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
                 const comp = composites.find((c) => c.name === name);
                 return (
                   <tr key={name} className="hover:bg-slate-50/80">
-                    <td className="px-3 py-2.5 font-semibold text-slate-900 whitespace-nowrap">
+                    <td className="px-3.5 py-3 font-semibold text-slate-900 whitespace-nowrap">
                       {i + 1}. {name}
                     </td>
                     {showDetails && (
                       <>
-                        <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-700">
+                        <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-700">
                           {fmtNum(comp?.mean, 3)}
                         </td>
-                        <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-600">
+                        <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
                           {fmtNum(comp?.sd, 3)}
                         </td>
                       </>
@@ -144,7 +144,7 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
                     {names.map((_, j) => {
                       if (j > i) {
                         return (
-                          <td key={j} className="px-3 py-2.5 text-right font-mono text-slate-300">
+                          <td key={j} className="px-3.5 py-3 text-right font-mono text-slate-300">
                             ·
                           </td>
                         );
@@ -153,7 +153,7 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
                         return (
                           <td
                             key={j}
-                            className="px-3 py-2.5 text-right font-mono font-bold text-slate-900 bg-slate-50/70"
+                            className="px-3.5 py-3 text-right font-mono font-bold text-slate-900 bg-slate-50/70"
                           >
                             1
                           </td>
@@ -165,7 +165,7 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
                       return (
                         <td
                           key={j}
-                          className={`px-3 py-2.5 text-right font-mono tabular-nums whitespace-nowrap ${
+                          className={`px-3.5 py-3 text-right font-mono tabular-nums whitespace-nowrap ${
                             strong
                               ? 'font-bold text-blue-800'
                               : cell.p < 0.05
@@ -179,7 +179,7 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
                             {showDetails && stars && <span className="text-blue-700 ml-0.5">{stars}</span>}
                           </div>
                           {showDetails && (
-                            <div className="text-[10px] font-normal text-slate-400">
+                            <div className="text-xs font-normal text-slate-500 mt-0.5">
                               ({fmtP(cell.p)})
                             </div>
                           )}
@@ -193,7 +193,7 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
           </table>
         </div>
 
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-600 leading-relaxed">
           {showDetails
             ? '* p < .05, ** p < .01, *** p < .001 (양측검정). 판별타당성 확인 시 상관계수가 0.85 미만인지 함께 점검하세요.'
             : '논문 표 양식에 맞춰 대각선 오른쪽(위쪽) 중복 값과 유의확률·N 행을 제거한 하삼각 표입니다. 우측 상단 버튼으로 엑셀에 바로 붙여넣을 수 있습니다.'}

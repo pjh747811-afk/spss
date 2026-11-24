@@ -23,21 +23,21 @@ export const ThesisSentenceCard: React.FC<ThesisSentenceCardProps> = ({ section 
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-blue-700 shrink-0" />
-          <h3 className="text-sm font-bold text-slate-900">
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-4 border-b border-slate-200">
+        <div className="flex items-center gap-2.5">
+          <BookOpen className="w-5 h-5 text-blue-700 shrink-0" />
+          <h3 className="text-base font-bold text-slate-900">
             결과표 읽기 &amp; 논문에 쓰는 문장 ({section.title})
           </h3>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="inline-flex items-center p-0.5 bg-slate-100 rounded-lg text-xs">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs">
             <button
               type="button"
               onClick={() => setStyle('standard')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                style === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                style === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               논문 본문형
@@ -45,8 +45,8 @@ export const ThesisSentenceCard: React.FC<ThesisSentenceCardProps> = ({ section 
             <button
               type="button"
               onClick={() => setStyle('concise')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                style === 'concise' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                style === 'concise' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               핵심 요약형
@@ -55,16 +55,16 @@ export const ThesisSentenceCard: React.FC<ThesisSentenceCardProps> = ({ section 
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300/90 bg-white px-3.5 py-2 min-h-[40px] text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.03)] hover:bg-slate-50 hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             {copied ? (
               <>
-                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span className="text-emerald-700">문장 복사됨</span>
               </>
             ) : (
               <>
-                <Copy className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <Copy className="w-4 h-4 text-slate-500 shrink-0" />
                 <span>논문 문장 복사</span>
               </>
             )}
@@ -73,9 +73,9 @@ export const ThesisSentenceCard: React.FC<ThesisSentenceCardProps> = ({ section 
       </div>
 
       {/* Reading Guide */}
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-1.5">
-        <div className="text-xs font-semibold text-slate-800">결과표 읽는 법</div>
-        <ul className="space-y-1 text-xs text-slate-600 leading-relaxed">
+      <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-4 sm:p-5 space-y-2">
+        <div className="text-xs font-bold text-slate-900">결과표 읽는 법</div>
+        <ul className="space-y-1.5 text-xs sm:text-sm text-slate-700 leading-relaxed">
           {section.readingGuide.map((line, idx) => (
             <li key={idx}>· {line}</li>
           ))}
@@ -83,11 +83,11 @@ export const ThesisSentenceCard: React.FC<ThesisSentenceCardProps> = ({ section 
       </div>
 
       {/* Generated Thesis Sentence */}
-      <div className="bg-blue-50/40 border border-blue-200/80 rounded-lg p-4">
-        <div className="text-[11px] font-semibold text-blue-800 mb-1.5">
+      <div className="bg-blue-50/40 border border-blue-200/80 rounded-xl p-4 sm:p-5">
+        <div className="text-xs font-bold text-blue-800 mb-2">
           논문 본문 서술 예시 (수치 자동 반영)
         </div>
-        <p className="text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-line select-all">
+        <p className="text-sm sm:text-base text-slate-800 leading-relaxed whitespace-pre-line select-all">
           {text}
         </p>
       </div>

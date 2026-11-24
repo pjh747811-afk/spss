@@ -100,16 +100,16 @@ const TableCopyButton: React.FC<{
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer no-print"
+      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300/90 bg-white px-3.5 py-2 min-h-[40px] text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.03)] hover:bg-slate-50 hover:text-slate-900 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer no-print"
     >
       {copied ? (
         <>
-          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
           <span className="text-emerald-700">논문 표 복사됨 (한글/워드/엑셀)</span>
         </>
       ) : (
         <>
-          <Copy className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+          <Copy className="w-4 h-4 text-slate-500 shrink-0" />
           <span>논문용 3선표 복사</span>
         </>
       )}
@@ -259,33 +259,33 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
     : '';
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-8">
-      <div className="flex items-start gap-2.5 pb-4 border-b border-slate-200">
-        <Table2 className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-8">
+      <div className="flex items-start gap-3 pb-4 border-b border-slate-200">
+        <Table2 className="w-5 h-5 text-blue-700 shrink-0 mt-1" />
         <div>
-          <h3 className="text-base font-bold text-slate-900">
+          <h3 className="text-lg font-bold text-slate-900">
             논문용 표 자동 생성 (KCI · APA 3선표 양식)
           </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
             학술지 및 학위논문 표준 3선표 형식으로 정리되었습니다. ‘논문용 3선표 복사’를 누르면 한글(HWP)·MS Word·엑셀에 서식 그대로 붙여넣을 수 있습니다.
           </p>
         </div>
       </div>
 
       {/* Table 1 */}
-      <div className="space-y-2.5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <h4 className="text-sm font-bold text-slate-900">{t1Title}</h4>
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+          <h4 className="text-sm sm:text-base font-bold text-slate-900">{t1Title}</h4>
           <TableCopyButton title={t1Title} headers={t1Headers} rows={t1Rows} note={t1Note} />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-t-2 border-b-2 border-slate-900">
             <thead>
-              <tr className="border-b border-slate-400 bg-slate-50/70 text-slate-800">
+              <tr className="border-b border-slate-400 bg-slate-50/80 text-slate-800">
                 {t1Headers.map((h, i) => (
                   <th
                     key={h}
-                    className={`px-3 py-2 font-semibold whitespace-nowrap ${
+                    className={`px-3.5 py-2.5 font-semibold whitespace-nowrap ${
                       i === 0 ? 'text-left' : 'text-right'
                     }`}
                   >
@@ -296,13 +296,13 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
             </thead>
             <tbody className="divide-y divide-slate-100">
               {t1Rows.map((row, idx) => (
-                <tr key={idx}>
+                <tr key={idx} className="hover:bg-slate-50/70">
                   {row.map((cell, cIdx) => (
                     <td
                       key={cIdx}
-                      className={`px-3 py-2 whitespace-nowrap ${
+                      className={`px-3.5 py-2.5 whitespace-nowrap ${
                         cIdx === 0
-                          ? 'text-left font-medium text-slate-900'
+                          ? 'text-left font-semibold text-slate-900'
                           : 'text-right font-mono tabular-nums text-slate-700'
                       }`}
                     >
@@ -314,24 +314,24 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
             </tbody>
           </table>
         </div>
-        <p className="text-[11px] text-slate-500">{t1Note}</p>
+        <p className="text-xs text-slate-600 leading-relaxed">{t1Note}</p>
       </div>
 
       {/* Table 2 */}
       {names.length > 0 && (
-        <div className="space-y-2.5 pt-4 border-t border-slate-200">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <h4 className="text-sm font-bold text-slate-900">{t2Title}</h4>
+        <div className="space-y-3 pt-5 border-t border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            <h4 className="text-sm sm:text-base font-bold text-slate-900">{t2Title}</h4>
             <TableCopyButton title={t2Title} headers={t2Headers} rows={t2Rows} note={t2Note} />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-t-2 border-b-2 border-slate-900">
               <thead>
-                <tr className="border-b border-slate-400 bg-slate-50/70 text-slate-800">
+                <tr className="border-b border-slate-400 bg-slate-50/80 text-slate-800">
                   {t2Headers.map((h, i) => (
                     <th
                       key={h}
-                      className={`px-3 py-2 font-semibold whitespace-nowrap ${
+                      className={`px-3.5 py-2.5 font-semibold whitespace-nowrap ${
                         i === 0 ? 'text-left' : 'text-right'
                       }`}
                     >
@@ -342,13 +342,13 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {t2Rows.map((row, idx) => (
-                  <tr key={idx}>
+                  <tr key={idx} className="hover:bg-slate-50/70">
                     {row.map((cell, cIdx) => (
                       <td
                         key={cIdx}
-                        className={`px-3 py-2 whitespace-nowrap ${
+                        className={`px-3.5 py-2.5 whitespace-nowrap ${
                           cIdx === 0
-                            ? 'text-left font-medium text-slate-900'
+                            ? 'text-left font-semibold text-slate-900'
                             : 'text-right font-mono tabular-nums text-slate-700'
                         }`}
                       >
@@ -360,25 +360,25 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-slate-500">{t2Note}</p>
+          <p className="text-xs text-slate-600 leading-relaxed">{t2Note}</p>
         </div>
       )}
 
       {/* Table 3 */}
       {allRegs.length > 0 && (
-        <div className="space-y-2.5 pt-4 border-t border-slate-200">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <h4 className="text-sm font-bold text-slate-900">{t3Title}</h4>
+        <div className="space-y-3 pt-5 border-t border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            <h4 className="text-sm sm:text-base font-bold text-slate-900">{t3Title}</h4>
             <TableCopyButton title={t3Title} headers={t3Headers} rows={t3Rows} note={t3Note} />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-t-2 border-b-2 border-slate-900">
               <thead>
-                <tr className="border-b border-slate-400 bg-slate-50/70 text-slate-800">
+                <tr className="border-b border-slate-400 bg-slate-50/80 text-slate-800">
                   {t3Headers.map((h, i) => (
                     <th
                       key={h}
-                      className={`px-3 py-2 font-semibold whitespace-nowrap ${
+                      className={`px-3.5 py-2.5 font-semibold whitespace-nowrap ${
                         i <= 1 ? 'text-left' : 'text-right'
                       }`}
                     >
@@ -389,15 +389,15 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {t3Rows.map((row, idx) => (
-                  <tr key={idx} className={row[0] ? 'border-t border-slate-300' : ''}>
+                  <tr key={idx} className={row[0] ? 'border-t border-slate-300 hover:bg-slate-50/70' : 'hover:bg-slate-50/70'}>
                     {row.map((cell, cIdx) => (
                       <td
                         key={cIdx}
-                        className={`px-3 py-2 whitespace-nowrap ${
+                        className={`px-3.5 py-2.5 whitespace-nowrap ${
                           cIdx === 0
                             ? 'text-left font-bold text-blue-800'
                             : cIdx === 1
-                              ? 'text-left font-medium text-slate-900'
+                              ? 'text-left font-semibold text-slate-900'
                               : 'text-right font-mono tabular-nums text-slate-700'
                         }`}
                       >
@@ -409,25 +409,25 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-slate-500">{t3Note}</p>
+          <p className="text-xs text-slate-600 leading-relaxed">{t3Note}</p>
         </div>
       )}
 
       {/* Table 4 */}
       {mod && t4Rows.length > 0 && (
-        <div className="space-y-2.5 pt-4 border-t border-slate-200">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <h4 className="text-sm font-bold text-slate-900">{t4Title}</h4>
+        <div className="space-y-3 pt-5 border-t border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            <h4 className="text-sm sm:text-base font-bold text-slate-900">{t4Title}</h4>
             <TableCopyButton title={t4Title} headers={t4Headers} rows={t4Rows} note={t4Note} />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-t-2 border-b-2 border-slate-900">
               <thead>
-                <tr className="border-b border-slate-400 bg-slate-50/70 text-slate-800">
+                <tr className="border-b border-slate-400 bg-slate-50/80 text-slate-800">
                   {t4Headers.map((h, i) => (
                     <th
                       key={h}
-                      className={`px-3 py-2 font-semibold whitespace-nowrap ${
+                      className={`px-3.5 py-2.5 font-semibold whitespace-nowrap ${
                         i <= 1 ? 'text-left' : 'text-right'
                       }`}
                     >
@@ -438,15 +438,15 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {t4Rows.map((row, idx) => (
-                  <tr key={idx} className={row[0] ? 'border-t border-slate-300' : ''}>
+                  <tr key={idx} className={row[0] ? 'border-t border-slate-300 hover:bg-slate-50/70' : 'hover:bg-slate-50/70'}>
                     {row.map((cell, cIdx) => (
                       <td
                         key={cIdx}
-                        className={`px-3 py-2 whitespace-nowrap ${
+                        className={`px-3.5 py-2.5 whitespace-nowrap ${
                           cIdx === 0
                             ? 'text-left font-bold text-blue-800'
                             : cIdx === 1
-                              ? 'text-left font-medium text-slate-900'
+                              ? 'text-left font-semibold text-slate-900'
                               : 'text-right font-mono tabular-nums text-slate-700'
                         }`}
                       >
@@ -458,7 +458,7 @@ export const AcademicTablesPanel: React.FC<AcademicTablesPanelProps> = ({ bundle
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-slate-500">{t4Note}</p>
+          <p className="text-xs text-slate-600 leading-relaxed">{t4Note}</p>
         </div>
       )}
     </div>

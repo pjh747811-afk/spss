@@ -15,9 +15,9 @@ export default defineConfig(() => {
         includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
           id: '/',
-          name: 'StatFlow 연구통계',
-          short_name: 'StatFlow',
-          description: 'SPSS 절차 기반 요인분석·신뢰도·상관·회귀·매개효과 통계 분석 웹앤앱',
+          name: 'SPSS 연구통계',
+          short_name: 'SPSS 연구통계',
+          description: 'SPSS 절차 기반 요인분석·신뢰도·상관·회귀·매개·조절효과 통계 분석 웹앤앱',
           theme_color: '#0F172A',
           background_color: '#F8FAFC',
           display: 'standalone',

@@ -395,27 +395,32 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {/* Top Bar Contract: 3 zones separated by gap-8 */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 no-print">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-8">
-          {/* Zone 1: Single text wordmark */}
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-30 no-print">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-[68px] flex items-center justify-between gap-4 lg:gap-8">
+          {/* Zone 1: Single wordmark */}
           <a
             href="#top"
             onClick={(e) => {
               e.preventDefault();
               navigateToStep(0);
             }}
-            className="text-base font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-2.5 text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0"
           >
-            StatFlow 연구통계
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white text-xs font-mono font-bold tracking-tighter shadow-sm">
+              S
+            </span>
+            <span>SPSS 연구통계</span>
           </a>
 
-          {/* Zone 2: 5 concise single-line nav links */}
-          <nav className="hidden md:flex items-center gap-6 text-xs font-medium text-slate-600">
+          {/* Zone 2: 5 concise single-line nav links (lg+ paired cleanly with <lg step bar) */}
+          <nav className="hidden lg:flex items-center gap-7 text-sm font-medium text-slate-600">
             <button
               type="button"
               onClick={() => navigateToStep(0)}
-              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer py-1 ${
-                activeStep === 0 ? 'text-blue-700 font-semibold border-b-2 border-blue-700' : ''
+              className={`hover:text-slate-900 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer py-2 border-b-2 ${
+                activeStep === 0
+                  ? 'text-blue-700 font-semibold border-blue-700'
+                  : 'border-transparent'
               }`}
             >
               개요·데이터
@@ -423,8 +428,10 @@ export default function App() {
             <button
               type="button"
               onClick={() => navigateToStep(1)}
-              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer py-1 ${
-                activeStep === 1 ? 'text-blue-700 font-semibold border-b-2 border-blue-700' : ''
+              className={`hover:text-slate-900 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer py-2 border-b-2 ${
+                activeStep === 1
+                  ? 'text-blue-700 font-semibold border-blue-700'
+                  : 'border-transparent'
               }`}
             >
               요인분석
@@ -432,10 +439,10 @@ export default function App() {
             <button
               type="button"
               onClick={() => navigateToStep(2)}
-              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer py-1 ${
+              className={`hover:text-slate-900 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer py-2 border-b-2 ${
                 activeStep === 2 || activeStep === 3
-                  ? 'text-blue-700 font-semibold border-b-2 border-blue-700'
-                  : ''
+                  ? 'text-blue-700 font-semibold border-blue-700'
+                  : 'border-transparent'
               }`}
             >
               신뢰도·변수계산
@@ -443,10 +450,10 @@ export default function App() {
             <button
               type="button"
               onClick={() => navigateToStep(4)}
-              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer py-1 ${
+              className={`hover:text-slate-900 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer py-2 border-b-2 ${
                 activeStep === 4 || activeStep === 5
-                  ? 'text-blue-700 font-semibold border-b-2 border-blue-700'
-                  : ''
+                  ? 'text-blue-700 font-semibold border-blue-700'
+                  : 'border-transparent'
               }`}
             >
               상관·회귀분석
@@ -454,8 +461,10 @@ export default function App() {
             <button
               type="button"
               onClick={() => navigateToStep(6)}
-              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer py-1 ${
-                activeStep === 6 ? 'text-blue-700 font-semibold border-b-2 border-blue-700' : ''
+              className={`hover:text-slate-900 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer py-2 border-b-2 ${
+                activeStep === 6
+                  ? 'text-blue-700 font-semibold border-blue-700'
+                  : 'border-transparent'
               }`}
             >
               결과·논문작성
@@ -468,7 +477,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleRunAnalysis}
-                className="px-4 py-2 text-xs font-semibold text-white bg-blue-700 rounded-lg hover:bg-blue-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                className="px-4 py-2 min-h-[40px] text-xs font-semibold text-white bg-blue-700 rounded-xl shadow-sm hover:bg-blue-800 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer"
               >
                 1단계부터 순서대로 시작
               </button>
@@ -477,7 +486,7 @@ export default function App() {
                 type="button"
                 onClick={handleLoadSample}
                 disabled={isLoading}
-                className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 min-h-[40px] text-xs font-semibold text-white bg-slate-900 rounded-xl shadow-sm hover:bg-slate-800 transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
               >
                 매개효과test 불러오기
               </button>
@@ -486,9 +495,9 @@ export default function App() {
         </div>
       </header>
 
-      {/* Mobile horizontal step switcher */}
-      <div className="lg:hidden bg-white border-b border-slate-200 px-3 py-2 overflow-x-auto no-print">
-        <div className="flex items-center gap-1.5">
+      {/* Mobile & Tablet horizontal step switcher */}
+      <div className="lg:hidden bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 overflow-x-auto no-print">
+        <div className="flex items-center gap-2">
           {STEPS.map((step) => {
             const active = activeStep === step.id;
             return (
@@ -496,10 +505,10 @@ export default function App() {
                 key={step.id}
                 type="button"
                 onClick={() => navigateToStep(step.id)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                   active
-                    ? 'bg-blue-700 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
                 }`}
               >
                 {step.shortLabel}
@@ -510,18 +519,24 @@ export default function App() {
       </div>
 
       {/* Main Workspace */}
-      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-7">
         {/* Desktop Left Sidebar */}
-        <aside className="hidden lg:block lg:col-span-3 xl:col-span-2 no-print">
-          <div className="sticky top-20 space-y-5">
-            <div>
-              <div className="flex items-center justify-between px-2 mb-2">
-                <span className="text-xs font-semibold text-slate-500">SPSS 분석 절차</span>
-                <span className="text-[11px] font-mono tabular-nums text-blue-700 font-semibold">
+        <aside className="hidden lg:block lg:col-span-3 no-print">
+          <div className="sticky top-24 space-y-5">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-3.5">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-bold text-slate-600">SPSS 분석 절차</span>
+                <span className="text-xs font-mono tabular-nums text-blue-700 font-bold">
                   {progressText}
                 </span>
               </div>
-              <nav className="space-y-1" aria-label="통계 분석 단계">
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-700 transition-all duration-300"
+                  style={{ width: `${Math.round((completedSteps.size / STEPS.length) * 100)}%` }}
+                />
+              </div>
+              <nav className="space-y-1 pt-1" aria-label="통계 분석 단계">
                 {STEPS.map((step) => {
                   const Icon = step.icon;
                   const active = activeStep === step.id;
@@ -531,18 +546,18 @@ export default function App() {
                       key={step.id}
                       type="button"
                       onClick={() => navigateToStep(step.id)}
-                      className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                      className={`w-full flex items-center justify-between gap-2 px-3.5 py-2.5 min-h-[42px] rounded-xl text-xs font-semibold transition-colors duration-150 cursor-pointer ${
                         active
-                          ? 'bg-blue-700 text-white'
-                          : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-slate-700 hover:bg-slate-100/90 hover:text-slate-900'
                       }`}
                     >
-                      <span className="flex items-center gap-2 truncate">
-                        <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-white' : 'text-slate-400'}`} />
+                      <span className="flex items-center gap-2.5 min-w-0">
+                        <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-blue-300' : 'text-slate-400'}`} />
                         <span className="truncate">{step.label}</span>
                       </span>
                       {done && !active && (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                       )}
                     </button>
                   );
@@ -550,25 +565,23 @@ export default function App() {
               </nav>
             </div>
 
-            <div className="border-t border-slate-200 pt-4 px-2 space-y-2 text-xs text-slate-600">
-              <div className="font-semibold text-slate-800">현재 작업 상태</div>
-              <div className="font-mono tabular-nums text-slate-700">{datasetStatusText}</div>
-              {fileName && <div className="truncate text-slate-500">{fileName}</div>}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-2 text-xs text-slate-600">
+              <div className="font-bold text-slate-900">현재 작업 상태</div>
+              <div className="font-mono tabular-nums text-slate-800 font-semibold">{datasetStatusText}</div>
+              {fileName && <div className="truncate text-slate-500" title={fileName}>{fileName}</div>}
               {bundle && (
-                <div className="text-emerald-700 font-medium">
+                <div className="pt-2 border-t border-slate-100 text-emerald-700 font-semibold">
                   전체 분석 · 논문 문장 준비됨
                 </div>
               )}
             </div>
 
-            <div className="pt-1">
-              <PWAInstallButton />
-            </div>
+            <PWAInstallButton />
           </div>
         </aside>
 
         {/* Main Viewport */}
-        <main className="lg:col-span-9 xl:col-span-10 min-w-0">
+        <main className="lg:col-span-9 min-w-0">
           {activeStep === 0 && (
             <StepUpload
               fileName={fileName}
@@ -670,13 +683,13 @@ export default function App() {
 
       {/* Offline indicator */}
       {!isOnline && (
-        <div className="fixed bottom-4 left-4 z-50 rounded-lg bg-amber-600 px-3.5 py-2 text-xs font-medium text-white shadow-lg no-print">
+        <div className="fixed bottom-4 left-4 z-50 rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-medium text-white shadow-lg no-print">
           오프라인 모드 · 모든 통계 연산과 논문 문장 작성이 브라우저 내부에서 정상 작동합니다.
         </div>
       )}
 
-      <footer className="border-t border-slate-200 bg-white py-5 px-4 text-center text-xs text-slate-500 no-print">
-        StatFlow 연구통계 · 데이터 입력 → 통계분석 → 결과표 읽기 → 논문 본문 문장 작성 · 모든 데이터는 기기 내에서만 처리됩니다.
+      <footer className="border-t border-slate-200/80 bg-white py-5 px-4 text-center text-xs text-slate-500 no-print">
+        SPSS 연구통계 · 데이터 입력 → 통계분석 → 결과표 읽기 → 논문 본문 문장 작성 · 모든 데이터는 기기 내에서만 처리됩니다.
       </footer>
     </div>
   );

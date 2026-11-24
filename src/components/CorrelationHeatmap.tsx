@@ -50,31 +50,31 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
     hovered && hovered.i !== hovered.j ? matrix[hovered.i]?.[hovered.j] : null;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-4 border-b border-slate-200">
         <div>
           <h3 className="text-base font-bold text-slate-900">상관관계 히트맵 (Heatmap)</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 mt-1">
             정(+)의 상관은 파란색, 부(-)의 상관은 붉은색 농도로 강도를 표현합니다.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer select-none">
+          <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none min-h-[36px]">
             <input
               type="checkbox"
               checked={highlightSig}
               onChange={(e) => setHighlightSig(e.target.checked)}
-              className="w-3.5 h-3.5 accent-blue-700 rounded cursor-pointer"
+              className="w-4 h-4 accent-blue-700 rounded cursor-pointer"
             />
             <span>유의수준(p &lt; .05) 강조</span>
           </label>
 
-          <div className="inline-flex items-center p-1 bg-slate-100 rounded-lg text-xs">
+          <div className="inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs">
             <button
               type="button"
               onClick={() => setTriangleOnly(false)}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                 !triangleOnly
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -85,7 +85,7 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
             <button
               type="button"
               onClick={() => setTriangleOnly(true)}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                 triangleOnly
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -102,17 +102,17 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
         <div className="flex items-center gap-2">
           <span className="font-mono tabular-nums text-rose-700 font-semibold">-1.0</span>
           <div
-            className="h-2.5 w-36 rounded-sm border border-slate-200"
+            className="h-3 w-36 rounded-sm border border-slate-200"
             style={{
               background: 'linear-gradient(90deg, #be123c 0%, #ffffff 50%, #1d4ed8 100%)',
             }}
             aria-label="상관계수 색상 범례: -1.0(붉은색)에서 0(흰색)을 거쳐 +1.0(파란색)"
           />
           <span className="font-mono tabular-nums text-blue-700 font-semibold">+1.0</span>
-          <span className="text-slate-400 ml-1">(0 = 무상관)</span>
+          <span className="text-slate-500 ml-1">(0 = 무상관)</span>
         </div>
 
-        <div className="text-xs font-mono tabular-nums text-slate-700 min-h-[20px]">
+        <div className="text-xs font-mono tabular-nums text-slate-700 min-h-[22px]">
           {hovered ? (
             hovered.i === hovered.j ? (
               <span>
@@ -128,7 +128,7 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
               </span>
             ) : null
           ) : (
-            <span className="font-sans text-slate-400">
+            <span className="font-sans text-slate-500">
               셀에 마우스를 올리면 정확한 상관계수와 유의확률을 확인할 수 있습니다.
             </span>
           )}
@@ -138,9 +138,9 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
       {/* Heatmap Matrix */}
       <div className="overflow-x-auto pb-1">
         <div
-          className="inline-grid gap-1 min-w-full"
+          className="inline-grid gap-1.5 min-w-full"
           style={{
-            gridTemplateColumns: `minmax(112px, 140px) repeat(${names.length}, minmax(72px, 1fr))`,
+            gridTemplateColumns: `minmax(124px, 156px) repeat(${names.length}, minmax(78px, 1fr))`,
           }}
         >
           {/* Top-left corner */}
@@ -175,7 +175,7 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
               {/* Heatmap Cells */}
               {names.map((_, j) => {
                 if (triangleOnly && j > i) {
-                  return <div key={`cell-${i}-${j}`} className="h-14 rounded-md bg-slate-50/40" />;
+                  return <div key={`cell-${i}-${j}`} className="h-16 rounded-lg bg-slate-50/50" />;
                 }
 
                 const isDiag = i === j;
@@ -196,7 +196,7 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
                       color: colors.color,
                       opacity: dimmed ? 0.58 : 1,
                     }}
-                    className={`h-14 rounded-md border flex flex-col items-center justify-center px-1 select-none transition-all font-mono tabular-nums ${
+                    className={`h-16 rounded-lg border flex flex-col items-center justify-center px-1.5 select-none transition-all font-mono tabular-nums ${
                       isActive
                         ? 'border-slate-900 ring-2 ring-slate-900/20 z-10'
                         : 'border-slate-200/80'
@@ -207,11 +207,11 @@ export const CorrelationHeatmap: React.FC<CorrelationHeatmapProps> = ({ correlat
                         : `${rowName} ↔ ${names[j]}: r = ${fmtNum(cell.r, 3)}, ${fmtP(cell.p)}, N = ${cell.n}`
                     }
                   >
-                    <span className="text-xs font-bold leading-tight">
+                    <span className="text-xs sm:text-sm font-bold leading-tight">
                       {isDiag ? '1.000' : `${fmtNum(cell.r, 3)}${stars}`}
                     </span>
                     {!isDiag && (
-                      <span className="text-[10px] opacity-80 leading-tight mt-0.5">
+                      <span className="text-xs opacity-85 leading-tight mt-0.5">
                         {fmtP(cell.p)}
                       </span>
                     )}

@@ -23,17 +23,17 @@ export const PathDiagram: React.FC<PathDiagramProps> = ({
 }) => {
   if (!independents.length || !mediatorName || !dependentName) return null;
 
-  const height = Math.max(260, independents.length * 64 + 60);
-  const width = 760;
+  const height = Math.max(280, independents.length * 68 + 64);
+  const width = 780;
 
-  const leftX = 30;
-  const boxW = 156;
-  const boxH = 40;
+  const leftX = 28;
+  const boxW = 166;
+  const boxH = 44;
 
-  const medX = 325;
-  const medY = 44;
+  const medX = 332;
+  const medY = 46;
 
-  const depX = 574;
+  const depX = 586;
   const depY = height / 2 - boxH / 2 + 24;
 
   const startY = 36;
@@ -47,18 +47,18 @@ export const PathDiagram: React.FC<PathDiagramProps> = ({
   return (
     <div className="w-full overflow-x-auto">
       <div className="min-w-[680px]">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-semibold text-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <h4 className="text-sm font-bold text-slate-900">
             연구모형 경로도 (표준화 계수 β 기준)
           </h4>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-slate-600">
             실선: p &lt; .05 (유의) · 점선: 비유의 · * p&lt;.05, ** p&lt;.01, *** p&lt;.001
           </span>
         </div>
 
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto bg-white border border-slate-200 rounded-lg"
+          className="w-full h-auto bg-white border border-slate-200 rounded-xl"
           role="img"
           aria-label="연구모형 경로도"
         >
@@ -131,9 +131,9 @@ export const PathDiagram: React.FC<PathDiagramProps> = ({
                 {c1 && (
                   <text
                     x={xEnd + (medTargetX - xEnd) * 0.45}
-                    y={yCenter - 4 + (medTargetY - (yCenter - 4)) * 0.45 - 4}
+                    y={yCenter - 4 + (medTargetY - (yCenter - 4)) * 0.45 - 5}
                     textAnchor="middle"
-                    className={`text-[10px] font-mono ${sig1 ? 'fill-blue-700 font-semibold' : 'fill-slate-400'}`}
+                    className={`text-[11.5px] font-mono ${sig1 ? 'fill-blue-700 font-semibold' : 'fill-slate-500'}`}
                   >
                     β={fmtNum(c1.beta, 3)}
                     {sigStars(c1.p)}
@@ -154,9 +154,9 @@ export const PathDiagram: React.FC<PathDiagramProps> = ({
                 {c3 && sig3 && (
                   <text
                     x={xEnd + (depTargetX - xEnd) * 0.62}
-                    y={yCenter + 6 + (depTargetY - (yCenter + 6)) * 0.62 + 12}
+                    y={yCenter + 6 + (depTargetY - (yCenter + 6)) * 0.62 + 13}
                     textAnchor="middle"
-                    className="text-[10px] font-mono fill-slate-800 font-semibold"
+                    className="text-[11.5px] font-mono fill-slate-800 font-semibold"
                   >
                     c={fmtNum(c3.beta, 3)}
                     {sigStars(c3.p)}
@@ -169,16 +169,16 @@ export const PathDiagram: React.FC<PathDiagramProps> = ({
                   y={y}
                   width={boxW}
                   height={boxH}
-                  rx="6"
+                  rx="8"
                   fill="#ffffff"
                   stroke="#cbd5e1"
                   strokeWidth="1.5"
                 />
                 <text
                   x={leftX + boxW / 2}
-                  y={y + boxH / 2 + 4}
+                  y={y + boxH / 2 + 5}
                   textAnchor="middle"
-                  className="fill-slate-900 text-[12px] font-semibold"
+                  className="fill-slate-900 text-[13.5px] font-semibold"
                 >
                   {indName}
                 </text>
@@ -209,9 +209,9 @@ export const PathDiagram: React.FC<PathDiagramProps> = ({
                 {medCoeff && (
                   <text
                     x={(mx1 + dx2) / 2 + 6}
-                    y={(my1 + dy2) / 2 - 8}
+                    y={(my1 + dy2) / 2 - 9}
                     textAnchor="middle"
-                    className={`text-[10px] font-mono ${sigM ? 'fill-emerald-700 font-semibold' : 'fill-slate-400'}`}
+                    className={`text-[11.5px] font-mono ${sigM ? 'fill-emerald-700 font-semibold' : 'fill-slate-500'}`}
                   >
                     {h4MedCoeff ? 'H4' : 'H2'} β={fmtNum(medCoeff.beta, 3)}
                     {sigStars(medCoeff.p)}
@@ -227,25 +227,25 @@ export const PathDiagram: React.FC<PathDiagramProps> = ({
             y={medY}
             width={boxW}
             height={boxH}
-            rx="6"
+            rx="8"
             fill="#eff6ff"
             stroke="#2563eb"
             strokeWidth="1.75"
           />
           <text
             x={medX + boxW / 2}
-            y={medY + boxH / 2 + 4}
+            y={medY + boxH / 2 + 5}
             textAnchor="middle"
-            className="fill-blue-950 text-[12px] font-semibold"
+            className="fill-blue-950 text-[13.5px] font-semibold"
           >
             {mediatorName} (매개)
           </text>
           {h1 && (
             <text
               x={medX + boxW / 2}
-              y={medY - 8}
+              y={medY - 9}
               textAnchor="middle"
-              className="fill-slate-500 text-[10px] font-mono"
+              className="fill-slate-600 text-[11.5px] font-mono"
             >
               H1 수정 R²={fmtNum(h1.adjR2, 3)}
             </text>
@@ -257,25 +257,25 @@ export const PathDiagram: React.FC<PathDiagramProps> = ({
             y={depY}
             width={boxW}
             height={boxH}
-            rx="6"
+            rx="8"
             fill="#ecfdf5"
             stroke="#059669"
             strokeWidth="1.75"
           />
           <text
             x={depX + boxW / 2}
-            y={depY + boxH / 2 + 4}
+            y={depY + boxH / 2 + 5}
             textAnchor="middle"
-            className="fill-emerald-950 text-[12px] font-semibold"
+            className="fill-emerald-950 text-[13.5px] font-semibold"
           >
             {dependentName} (종속)
           </text>
           {h2 && (
             <text
               x={depX + boxW / 2}
-              y={depY + boxH + 16}
+              y={depY + boxH + 18}
               textAnchor="middle"
-              className="fill-slate-500 text-[10px] font-mono"
+              className="fill-slate-600 text-[11.5px] font-mono"
             >
               H2 수정 R²={fmtNum(h2.adjR2, 3)}
               {h3 ? ` · H3=${fmtNum(h3.adjR2, 3)}` : ''}

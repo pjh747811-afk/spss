@@ -232,7 +232,7 @@ export function downloadSummaryCSV(bundle: AnalysisBundle): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'StatFlow_통계분석결과.csv';
+  a.download = 'SPSS연구통계_통계분석결과.csv';
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -256,7 +256,7 @@ export function downloadCompositesCSV(bundle: AnalysisBundle): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'StatFlow_합변수데이터.csv';
+  a.download = 'SPSS연구통계_합변수데이터.csv';
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -393,7 +393,7 @@ export function downloadExcelWorkbook(
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(proseRows), '논문문장');
   }
 
-  XLSX.writeFile(wb, 'StatFlow_SPSS통계분석결과.xlsx');
+  XLSX.writeFile(wb, 'SPSS연구통계_분석결과.xlsx');
 }
 
 export function parsePastedSurveyText(rawText: string): {

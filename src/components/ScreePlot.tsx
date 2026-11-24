@@ -11,12 +11,12 @@ export const ScreePlot: React.FC<ScreePlotProps> = ({ eigenvalues, numFactors })
 
   if (!eigenvalues.length) return null;
 
-  const width = 640;
-  const height = 240;
-  const padL = 44;
-  const padR = 20;
-  const padT = 20;
-  const padB = 34;
+  const width = 660;
+  const height = 256;
+  const padL = 48;
+  const padR = 22;
+  const padT = 22;
+  const padB = 38;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
 
@@ -37,9 +37,9 @@ export const ScreePlot: React.FC<ScreePlotProps> = ({ eigenvalues, numFactors })
   return (
     <div className="w-full overflow-x-auto">
       <div className="min-w-[500px]">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-semibold text-slate-900">스크리 도표 (Scree Plot)</h4>
-          <span className="text-xs text-slate-500 font-mono tabular-nums">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <h4 className="text-sm font-bold text-slate-900">스크리 도표 (Scree Plot)</h4>
+          <span className="text-xs text-slate-600 font-mono tabular-nums font-medium">
             {hovered !== null
               ? `요인 ${hovered + 1} · 고유값(Eigenvalue) = ${fmtNum(eigenvalues[hovered], 3)}`
               : `고유값 > 1.0 기준 추출 요인 ${numFactors}개`}
@@ -48,7 +48,7 @@ export const ScreePlot: React.FC<ScreePlotProps> = ({ eigenvalues, numFactors })
 
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto bg-white border border-slate-200 rounded-lg"
+          className="w-full h-auto bg-white border border-slate-200 rounded-xl"
           role="img"
           aria-label="요인분석 스크리 도표"
         >
@@ -64,10 +64,10 @@ export const ScreePlot: React.FC<ScreePlotProps> = ({ eigenvalues, numFactors })
                 strokeWidth="1"
               />
               <text
-                x={padL - 8}
+                x={padL - 10}
                 y={yPos(t) + 4}
                 textAnchor="end"
-                className="fill-slate-500 text-[10px]"
+                className="fill-slate-500 text-[12px]"
                 style={{ fontFamily: 'JetBrains Mono, monospace' }}
               >
                 {t}
@@ -82,14 +82,14 @@ export const ScreePlot: React.FC<ScreePlotProps> = ({ eigenvalues, numFactors })
             x2={width - padR}
             y2={kaiserY}
             stroke="#dc2626"
-            strokeWidth="1.25"
+            strokeWidth="1.5"
             strokeDasharray="4 4"
           />
           <text
             x={width - padR - 4}
-            y={kaiserY - 5}
+            y={kaiserY - 6}
             textAnchor="end"
-            className="fill-red-600 text-[10px] font-medium"
+            className="fill-red-600 text-[12px] font-semibold"
           >
             Kaiser 기준 (λ = 1.0)
           </text>
@@ -98,7 +98,7 @@ export const ScreePlot: React.FC<ScreePlotProps> = ({ eigenvalues, numFactors })
           <polyline
             fill="none"
             stroke="#1d4ed8"
-            strokeWidth="2"
+            strokeWidth="2.25"
             points={points}
           />
 
@@ -118,7 +118,7 @@ export const ScreePlot: React.FC<ScreePlotProps> = ({ eigenvalues, numFactors })
                 <circle
                   cx={cx}
                   cy={cy}
-                  r={isHover ? 6 : 4}
+                  r={isHover ? 6.5 : 4.5}
                   fill={extracted ? '#1d4ed8' : '#ffffff'}
                   stroke={extracted ? '#1d4ed8' : '#64748b'}
                   strokeWidth="2"
@@ -128,7 +128,7 @@ export const ScreePlot: React.FC<ScreePlotProps> = ({ eigenvalues, numFactors })
                     x={cx}
                     y={height - 12}
                     textAnchor="middle"
-                    className="fill-slate-500 text-[10px]"
+                    className="fill-slate-600 text-[12px]"
                     style={{ fontFamily: 'JetBrains Mono, monospace' }}
                   >
                     {i + 1}

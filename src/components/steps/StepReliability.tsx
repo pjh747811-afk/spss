@@ -53,11 +53,11 @@ export const StepReliability: React.FC<StepReliabilityProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-200">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 pb-4 border-b border-slate-200">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">2. 신뢰도 분석 (Cronbach’s α)</h2>
-            <p className="text-xs text-slate-500 mt-1">
+            <h2 className="text-xl font-bold tracking-tight text-slate-900">2. 신뢰도 분석 (Cronbach’s α)</h2>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1.5">
               내적 일관성 검증 · 수용 기준: α ≥ 0.60 (학술 권장 ≥ 0.70)
             </p>
           </div>
@@ -70,17 +70,17 @@ export const StepReliability: React.FC<StepReliabilityProps> = ({
           note="※ 항목-총점 통계에서 '항목 삭제 시 Cronbach α'가 전체 α보다 크게 상승하는 문항이 있다면 제거 여부를 검토합니다."
         />
 
-        <div className="overflow-x-auto border border-slate-200 rounded-lg">
+        <div className="overflow-x-auto border border-slate-200/90 rounded-xl">
           <table className="w-full text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-700">
+            <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
               <tr>
-                <th className="px-3 py-2.5 text-left font-semibold">구성개념</th>
-                <th className="px-3 py-2.5 text-right font-semibold">문항 수</th>
-                <th className="px-3 py-2.5 text-right font-semibold">유효 N</th>
-                <th className="px-3 py-2.5 text-right font-semibold">Cronbach’s α</th>
-                <th className="px-3 py-2.5 text-right font-semibold">표준화 α</th>
-                <th className="px-3 py-2.5 text-left font-semibold">판정</th>
-                <th className="px-3 py-2.5 text-right font-semibold">항목-총점 통계</th>
+                <th className="px-3.5 py-3 text-left font-semibold">구성개념</th>
+                <th className="px-3.5 py-3 text-right font-semibold">문항 수</th>
+                <th className="px-3.5 py-3 text-right font-semibold">유효 N</th>
+                <th className="px-3.5 py-3 text-right font-semibold">Cronbach’s α</th>
+                <th className="px-3.5 py-3 text-right font-semibold">표준화 α</th>
+                <th className="px-3.5 py-3 text-left font-semibold">판정</th>
+                <th className="px-3.5 py-3 text-right font-semibold">항목-총점 통계</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -92,36 +92,36 @@ export const StepReliability: React.FC<StepReliabilityProps> = ({
                 return (
                   <React.Fragment key={r.constructName}>
                     <tr className="hover:bg-slate-50/80">
-                      <td className="px-3 py-2.5 font-semibold text-slate-900">{r.constructName}</td>
-                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{r.nItems}</td>
-                      <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-600">{r.nValid}</td>
-                      <td className="px-3 py-2.5 text-right font-mono tabular-nums font-bold text-slate-900">
+                      <td className="px-3.5 py-3 font-semibold text-slate-900">{r.constructName}</td>
+                      <td className="px-3.5 py-3 text-right font-mono tabular-nums">{r.nItems}</td>
+                      <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">{r.nValid}</td>
+                      <td className="px-3.5 py-3 text-right font-mono tabular-nums font-bold text-slate-900">
                         {fmtNum(r.alpha, 3)}
                       </td>
-                      <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-600">
+                      <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
                         {fmtNum(r.standardizedAlpha, 3)}
                       </td>
                       <td
-                        className={`px-3 py-2.5 font-medium ${
+                        className={`px-3.5 py-3 font-semibold ${
                           isGood ? 'text-emerald-700' : isAcceptable ? 'text-blue-700' : 'text-red-700'
                         }`}
                       >
                         {isGood ? '우수 (≥ 0.7)' : isAcceptable ? '양호 (≥ 0.6)' : '재검토 필요'}
                       </td>
-                      <td className="px-3 py-2.5 text-right">
+                      <td className="px-3.5 py-3 text-right">
                         <button
                           type="button"
                           onClick={() => setExpanded(isOpen ? null : r.constructName)}
-                          className="inline-flex items-center gap-1 text-blue-700 hover:underline font-medium cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-blue-700 hover:bg-blue-50 font-semibold cursor-pointer"
                         >
                           {isOpen ? (
                             <>
-                              <ChevronDown className="w-3.5 h-3.5" />
+                              <ChevronDown className="w-4 h-4" />
                               <span>접기</span>
                             </>
                           ) : (
                             <>
-                              <ChevronRight className="w-3.5 h-3.5" />
+                              <ChevronRight className="w-4 h-4" />
                               <span>세부 보기</span>
                             </>
                           )}
@@ -130,19 +130,19 @@ export const StepReliability: React.FC<StepReliabilityProps> = ({
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={7} className="bg-slate-50/70 px-4 py-3">
-                          <div className="text-xs font-semibold text-slate-800 mb-2">
+                        <td colSpan={7} className="bg-slate-50/80 px-4 py-3.5">
+                          <div className="text-xs font-bold text-slate-800 mb-2.5">
                             {r.constructName} · 항목-총점 통계량 (항목 삭제 시 α 확인)
                           </div>
-                          <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white">
+                          <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
                             <table className="w-full text-xs">
-                              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
+                              <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-600">
                                 <tr>
-                                  <th className="px-3 py-2 text-left font-medium">문항</th>
-                                  <th className="px-3 py-2 text-right font-medium">항목 삭제 시 척도 평균</th>
-                                  <th className="px-3 py-2 text-right font-medium">항목 삭제 시 척도 분산</th>
-                                  <th className="px-3 py-2 text-right font-medium">수정된 항목-총점 상관</th>
-                                  <th className="px-3 py-2 text-right font-medium">항목 삭제 시 Cronbach α</th>
+                                  <th className="px-3.5 py-2 text-left font-semibold">문항</th>
+                                  <th className="px-3.5 py-2 text-right font-semibold">항목 삭제 시 척도 평균</th>
+                                  <th className="px-3.5 py-2 text-right font-semibold">항목 삭제 시 척도 분산</th>
+                                  <th className="px-3.5 py-2 text-right font-semibold">수정된 항목-총점 상관</th>
+                                  <th className="px-3.5 py-2 text-right font-semibold">항목 삭제 시 Cronbach α</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
@@ -150,20 +150,20 @@ export const StepReliability: React.FC<StepReliabilityProps> = ({
                                   const improvesAlpha =
                                     Number.isFinite(st.alphaIfDeleted) && st.alphaIfDeleted > r.alpha + 0.005;
                                   return (
-                                    <tr key={st.item}>
-                                      <td className="px-3 py-1.5 font-medium text-slate-800">{st.item}</td>
-                                      <td className="px-3 py-1.5 text-right font-mono tabular-nums">
+                                    <tr key={st.item} className="hover:bg-slate-50/60">
+                                      <td className="px-3.5 py-2 font-semibold text-slate-800">{st.item}</td>
+                                      <td className="px-3.5 py-2 text-right font-mono tabular-nums">
                                         {fmtNum(st.scaleMeanIfDeleted, 3)}
                                       </td>
-                                      <td className="px-3 py-1.5 text-right font-mono tabular-nums">
+                                      <td className="px-3.5 py-2 text-right font-mono tabular-nums">
                                         {fmtNum(st.scaleVarIfDeleted, 3)}
                                       </td>
-                                      <td className="px-3 py-1.5 text-right font-mono tabular-nums">
+                                      <td className="px-3.5 py-2 text-right font-mono tabular-nums">
                                         {fmtNum(st.correctedItemTotalCorr, 3)}
                                       </td>
                                       <td
-                                        className={`px-3 py-1.5 text-right font-mono tabular-nums ${
-                                          improvesAlpha ? 'text-amber-700 font-semibold' : 'text-slate-700'
+                                        className={`px-3.5 py-2 text-right font-mono tabular-nums ${
+                                          improvesAlpha ? 'text-amber-700 font-bold' : 'text-slate-700'
                                         }`}
                                       >
                                         {fmtNum(st.alphaIfDeleted, 3)}

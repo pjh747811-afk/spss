@@ -53,11 +53,11 @@ export const StepComposites: React.FC<StepCompositesProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-200">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 pb-4 border-b border-slate-200">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">3. 변수 계산 (합변수 · 기술통계)</h2>
-            <p className="text-xs text-slate-500 mt-1">
+            <h2 className="text-xl font-bold tracking-tight text-slate-900">3. 변수 계산 (합변수 · 기술통계)</h2>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1.5">
               타당성·신뢰도를 통과한 구성개념별 문항 평균(합변수)과 기술통계량을 산출합니다.
             </p>
           </div>
@@ -66,48 +66,48 @@ export const StepComposites: React.FC<StepCompositesProps> = ({
 
         <SPSSGuideBar menuPath="변환 → 변수 계산" steps={SPSS_COMPUTE_STEPS} />
 
-        <div className="rounded-lg border border-red-200 bg-red-50/70 px-4 py-3 text-xs text-red-900 leading-relaxed">
-          <strong className="font-semibold text-red-700">가장 많이 하는 실수:</strong> 괄호를 빼먹는 것.
+        <div className="rounded-xl border border-red-200/90 bg-red-50/70 px-4 py-3.5 text-xs sm:text-sm text-red-900 leading-relaxed">
+          <strong className="font-bold text-red-700">가장 많이 하는 실수:</strong> 괄호를 빼먹는 것.
           괄호가 없으면 마지막 문항만 문항 수로 나눠집니다. 아래 수식 예시처럼 반드시 전체 합을 괄호로 감싼 뒤 나누세요.
         </div>
 
-        <div className="overflow-x-auto border border-slate-200 rounded-lg">
+        <div className="overflow-x-auto border border-slate-200/90 rounded-xl">
           <table className="w-full text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-700">
+            <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
               <tr>
-                <th className="px-3 py-2.5 text-left font-semibold">합변수명</th>
-                <th className="px-3 py-2.5 text-right font-semibold">문항 수</th>
-                <th className="px-3 py-2.5 text-right font-semibold">N</th>
-                <th className="px-3 py-2.5 text-right font-semibold">평균</th>
-                <th className="px-3 py-2.5 text-right font-semibold">표준편차</th>
-                <th className="px-3 py-2.5 text-right font-semibold">최솟값</th>
-                <th className="px-3 py-2.5 text-right font-semibold">최댓값</th>
-                <th className="px-3 py-2.5 text-right font-semibold">왜도</th>
-                <th className="px-3 py-2.5 text-right font-semibold">첨도</th>
+                <th className="px-3.5 py-3 text-left font-semibold">합변수명</th>
+                <th className="px-3.5 py-3 text-right font-semibold">문항 수</th>
+                <th className="px-3.5 py-3 text-right font-semibold">N</th>
+                <th className="px-3.5 py-3 text-right font-semibold">평균</th>
+                <th className="px-3.5 py-3 text-right font-semibold">표준편차</th>
+                <th className="px-3.5 py-3 text-right font-semibold">최솟값</th>
+                <th className="px-3.5 py-3 text-right font-semibold">최댓값</th>
+                <th className="px-3.5 py-3 text-right font-semibold">왜도</th>
+                <th className="px-3.5 py-3 text-right font-semibold">첨도</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {composites.map((c) => (
                 <tr key={c.name} className="hover:bg-slate-50/80">
-                  <td className="px-3 py-2.5 font-semibold text-slate-900 whitespace-nowrap">{c.name}합</td>
-                  <td className="px-3 py-2.5 text-right font-mono tabular-nums">{c.items.length}</td>
-                  <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-600">{c.n}</td>
-                  <td className="px-3 py-2.5 text-right font-mono tabular-nums font-bold text-slate-900">
+                  <td className="px-3.5 py-3 font-semibold text-slate-900 whitespace-nowrap">{c.name}합</td>
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums">{c.items.length}</td>
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">{c.n}</td>
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums font-bold text-slate-900">
                     {fmtNum(c.mean, 3)}
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-700">
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-700">
                     {fmtNum(c.sd, 3)}
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-600">
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
                     {fmtNum(c.min, 3)}
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-600">
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
                     {fmtNum(c.max, 3)}
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-600">
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
                     {fmtNum(c.skewness, 3)}
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono tabular-nums text-slate-600">
+                  <td className="px-3.5 py-3 text-right font-mono tabular-nums text-slate-600">
                     {fmtNum(c.kurtosis, 3)}
                   </td>
                 </tr>
@@ -117,14 +117,14 @@ export const StepComposites: React.FC<StepCompositesProps> = ({
         </div>
 
         <div className="pt-2">
-          <h3 className="text-sm font-semibold text-slate-900 mb-3">적용된 SPSS 변수 계산 수식</h3>
-          <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg bg-slate-900 text-slate-100">
+          <h3 className="text-base font-bold text-slate-900 mb-3">적용된 SPSS 변수 계산 수식</h3>
+          <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl bg-slate-900 text-slate-100 overflow-hidden">
             {composites.map((c) => (
               <div
                 key={c.name}
-                className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs"
+                className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs"
               >
-                <span className="font-semibold text-emerald-300 w-32 shrink-0">{c.name}합</span>
+                <span className="font-bold text-emerald-300 w-32 shrink-0">{c.name}합</span>
                 <code className="font-mono text-slate-200 break-all">= {c.formula}</code>
               </div>
             ))}
