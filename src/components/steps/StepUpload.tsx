@@ -1,5 +1,13 @@
 import React, { useRef, useState } from 'react';
-import { ClipboardPaste, Download, FileSpreadsheet, Search, Upload } from 'lucide-react';
+import {
+  ClipboardPaste,
+  Download,
+  FileSpreadsheet,
+  GitBranch,
+  Search,
+  SlidersHorizontal,
+  Upload,
+} from 'lucide-react';
 import {
   AnalysisBundle,
   ConstructMapping,
@@ -7,6 +15,9 @@ import {
   EFAConfig,
   HypothesisConfig,
 } from '../../types/stats';
+import { Step0SubTab } from '../../utils/modelStore';
+import { buildDefaultPaths } from '../../utils/researchModel';
+import { ResearchModelEditor } from '../ResearchModelEditor';
 import { ScrollableTable } from '../ScrollableTable';
 import { StepFooterNav } from '../StepFooterNav';
 import { StepIssuesAlert } from '../StepIssuesAlert';
@@ -22,8 +33,16 @@ interface StepUploadProps {
   hypothesis: HypothesisConfig;
   efaConfig: EFAConfig;
   bundle: AnalysisBundle | null;
+  activeSubTab: Step0SubTab;
+  highlightVariables?: boolean;
+  onChangeSubTab: (tab: Step0SubTab) => void;
   onChangeConstructs: (next: ConstructMapping[]) => void;
   onChangeHypothesis: (next: HypothesisConfig) => void;
+  onSaveResearchModel: (
+    nextConstructs: ConstructMapping[],
+    nextHypothesis: HypothesisConfig,
+    options?: { showToast?: boolean; nextTab?: 'overview' | 'mapping' }
+  ) => void;
   onChangeEFAConfig: (next: EFAConfig) => void;
   onAutoDetect: () => void;
   onFileUpload: (file: File) => void;
@@ -43,8 +62,12 @@ export const StepUpload: React.FC<StepUploadProps> = ({
   hypothesis,
   efaConfig,
   bundle,
+  activeSubTab,
+  highlightVariables = false,
+  onChangeSubTab,
   onChangeConstructs,
   onChangeHypothesis,
+  onSaveResearchModel,
   onChangeEFAConfig,
   onAutoDetect,
   onFileUpload,
@@ -57,7 +80,6 @@ export const StepUpload: React.FC<StepUploadProps> = ({
   const [dragOver, setDragOver] = useState(false);
   const [searchCol, setSearchCol] = useState('');
   const [page, setPage] = useState(0);
-  const [activeTab, setActiveTab] = useState<'overview' | 'mapping'>('overview');
   const [inputMode, setInputMode] = useState<'file' | 'paste'>('file');
   const [pastedText, setPastedText] = useState('');
 
@@ -84,37 +106,30 @@ export const StepUpload: React.FC<StepUploadProps> = ({
   const medText = hypothesis.mediator || '선택 안 함 (직접회귀 모형)';
   const depText = hypothesis.dependent || '미지정';
 
-  const hypothesisRows = !hasModel
-    ? []
-    : isMediationModel
-      ? [
-          {
-            id: 'H1',
-            color: 'text-blue-700',
-            dep: hypothesis.mediator,
-            indep: hypothesis.independents.join(', '),
-          },
-          {
-            id: 'H2',
-            color: 'text-emerald-700',
-            dep: hypothesis.dependent,
-            indep: hypothesis.mediator,
-          },
-          {
-            id: 'H3',
-            color: 'text-violet-700',
-            dep: hypothesis.dependent,
-            indep: hypothesis.independents.join(', '),
-          },
-        ]
-      : [
-          {
-            id: 'H3',
-            color: 'text-blue-700',
-            dep: hypothesis.dependent,
-            indep: hypothesis.independents.join(', '),
-          },
-        ];
+  const resolvedPaths =
+    hypothesis.paths && hypothesis.paths.length > 0
+      ? hypothesis.paths
+      : buildDefaultPaths(hypothesis, constructs);
+
+  const hypothesisRows = resolvedPaths.map((p, idx) => ({
+    id: p.id,
+    color:
+      idx % 3 === 0
+        ? 'text-blue-700'
+        : idx % 3 === 1
+          ? 'text-emerald-700'
+          : 'text-violet-700',
+    dep: p.to || '미지정',
+    indep: p.role === 'moderation' && p.moderator ? `${p.from} × ${p.moderator}` : p.from || '미지정',
+    roleLabel:
+      p.role === 'mediation_a'
+        ? '매개 경로 (a)'
+        : p.role === 'mediation_b'
+          ? '매개 경로 (b)'
+          : p.role === 'moderation'
+            ? '조절 경로'
+            : '직접 경로',
+  }));
 
   const colProfiles = bundle?.columnProfiles ?? [];
   const profileCounts = {
@@ -138,31 +153,42 @@ export const StepUpload: React.FC<StepUploadProps> = ({
     <div className="space-y-6">
       {/* Step 0 Header + Sub-tab Switcher */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 sm:pb-5 border-b border-slate-200">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 pb-4 sm:pb-5 border-b border-slate-200">
           <div className="min-w-0">
             <h2 className="text-xl font-bold tracking-tight text-slate-900">0. 개요 &amp; 데이터 입력</h2>
             <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">
-              연구 흐름: 데이터 입력 → 요인분석 → 신뢰도 → 변수계산 → 상관분석 → 회귀·매개검증 → 결과표 읽기 · 논문 문장 작성
+              연구 흐름: 데이터 입력 → 연구모형 · 변수 매핑 → 요인분석 → 신뢰도 → 변수계산 → 상관분석 → 회귀·매개검증 → 논문 작성
             </p>
           </div>
-          <div className="w-full sm:w-auto shrink-0">
-            <div className="grid grid-cols-2 sm:inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs">
+          <div className="w-full xl:w-auto shrink-0 overflow-x-auto">
+            <div className="inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60 text-xs min-w-full sm:min-w-0">
               <button
                 type="button"
-                onClick={() => setActiveTab('overview')}
-                className={`px-3 sm:px-3.5 py-2 min-h-[40px] rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer text-center ${
-                  activeTab === 'overview'
+                onClick={() => onChangeSubTab('overview')}
+                className={`flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 min-h-[40px] rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer text-center ${
+                  activeSubTab === 'overview'
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                연구모형 · 데이터 입력
+                개요 · 데이터 입력
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('mapping')}
-                className={`px-3 sm:px-3.5 py-2 min-h-[40px] rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer text-center ${
-                  activeTab === 'mapping'
+                onClick={() => onChangeSubTab('model')}
+                className={`flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 min-h-[40px] rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer text-center ${
+                  activeSubTab === 'model'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                연구모형 데이터 입력
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeSubTab('mapping')}
+                className={`flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 min-h-[40px] rounded-lg font-semibold transition-colors whitespace-nowrap cursor-pointer text-center ${
+                  activeSubTab === 'mapping'
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
@@ -173,9 +199,9 @@ export const StepUpload: React.FC<StepUploadProps> = ({
           </div>
         </div>
 
-        {activeTab === 'overview' && (
+        {activeSubTab === 'overview' && (
           <div className="mt-4 sm:mt-5 space-y-5 sm:space-y-6">
-            {/* 3 KPI Stat Blocks: 2-up on mobile + compact 3rd row, 3-up on sm+ */}
+            {/* 3 KPI Stat Blocks */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3.5">
               <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3.5 py-3 sm:px-4 sm:py-3.5 min-w-0">
                 <div className="text-xs font-medium text-slate-600">추출 요인 (타당성)</div>
@@ -200,36 +226,70 @@ export const StepUpload: React.FC<StepUploadProps> = ({
             {/* Research Model & Hypotheses */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6">
               <div className="lg:col-span-5 min-w-0 space-y-3">
-                <h3 className="text-base font-bold text-slate-900">연구모형</h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-bold text-slate-900">
+                    {hypothesis.modelName ? `연구모형 · ${hypothesis.modelName}` : '연구모형'}
+                  </h3>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onChangeSubTab('model')}
+                      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 transition-colors cursor-pointer"
+                    >
+                      <GitBranch className="w-3.5 h-3.5" />
+                      <span>연구모형 데이터 입력</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onChangeSubTab('mapping')}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                      <span>변수 매핑</span>
+                    </button>
+                  </div>
+                </div>
                 <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-4 sm:p-5 text-xs sm:text-sm space-y-2.5">
                   <p className="font-bold text-slate-900 leading-relaxed">
-                    {!rows.length
-                      ? '설문 데이터를 불러오면 연구모형이 자동으로 구성됩니다.'
+                    {!rows.length && constructs.length === 0
+                      ? '설문 데이터를 불러오거나 [연구모형 데이터 입력]을 눌러 연구모형을 설정하세요.'
                       : hasModel
                         ? isMediationModel
                           ? `${hypothesis.independents.join(' · ')} → ${hypothesis.mediator} (매개) → ${hypothesis.dependent}`
                           : `${hypothesis.independents.join(' · ')} → ${hypothesis.dependent} (직접회귀 모형)`
-                        : '변수 매핑 · 모형 설정에서 독립/매개/종속변수를 지정해 주세요.'}
+                        : '변수 매핑 · 모형 설정에서 독립(X)과 종속(Y)을 지정해 주세요.'}
                   </p>
                   <ul className="space-y-1.5 text-slate-700 leading-relaxed">
+                    <li>· 등록 구성개념: {constructs.length}개 ({constructs.map((c) => c.name).join(', ') || '없음'})</li>
                     <li>· 독립변수(X): {indepText}</li>
                     <li>· 매개변수(M): {medText}</li>
+                    {hypothesis.moderator && <li>· 조절변수(W): {hypothesis.moderator}</li>}
                     <li>· 종속변수(Y): {depText}</li>
                   </ul>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  ※ 각 단계별로 결과표 해석 가이드와 논문에 바로 붙여넣을 수 있는 학술 문장이 자동 생성됩니다.
+                  ※ 연구모형 데이터 입력과 변수 매핑에서 설정한 내용은 모든 분석 단계에 자동 연동되며 새로고침 후에도 유지됩니다.
                 </p>
               </div>
 
               <div className="lg:col-span-7 min-w-0">
                 <h3 className="text-base font-bold text-slate-900 mb-3">
-                  {isMediationModel ? '연구가설 (H1~H3 · 매개모형)' : '연구가설 (직접회귀 모형)'}
+                  {isMediationModel ? '연구가설 (H1~H3 · 매개모형)' : '연구가설 및 경로'}
                 </h3>
 
                 {hypothesisRows.length === 0 ? (
-                  <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-4 text-xs sm:text-sm text-slate-600">
-                    상단 [변수 매핑 · 모형 설정] 탭에서 구성개념에 문항을 연결하고 독립변수(X)와 종속변수(Y)를 지정하면 가설 모형이 표시됩니다.
+                  <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-4 text-xs sm:text-sm text-slate-600 space-y-2">
+                    <p>
+                      상단 [연구모형 데이터 입력] 또는 [변수 매핑 · 모형 설정] 탭에서 구성개념과 독립변수(X)·종속변수(Y)를 지정하면 가설 경로가 표시됩니다.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => onChangeSubTab('model')}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 cursor-pointer"
+                    >
+                      <GitBranch className="w-3.5 h-3.5" />
+                      <span>연구모형 데이터 입력 열기</span>
+                    </button>
                   </div>
                 ) : (
                   <>
@@ -237,7 +297,7 @@ export const StepUpload: React.FC<StepUploadProps> = ({
                     <div className="sm:hidden space-y-2.5">
                       {hypothesisRows.map((item) => (
                         <div
-                          key={item.id}
+                          key={`${item.id}-${item.indep}-${item.dep}`}
                           className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-3.5 space-y-2"
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -248,7 +308,7 @@ export const StepUpload: React.FC<StepUploadProps> = ({
                           </div>
                           <div className="text-xs text-slate-700 leading-relaxed">
                             <span className="text-slate-500 font-medium">독립: </span>
-                            {item.indep}
+                            {item.indep} → {item.dep}
                           </div>
                         </div>
                       ))}
@@ -257,24 +317,28 @@ export const StepUpload: React.FC<StepUploadProps> = ({
                     {/* Tablet/Desktop table layout */}
                     <div className="hidden sm:block">
                       <ScrollableTable>
-                        <table className="w-full min-w-[460px] text-xs">
+                        <table className="w-full min-w-[480px] text-xs">
                           <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
                             <tr>
                               <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap w-16">가설</th>
-                              <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap min-w-[120px]">종속변수</th>
-                              <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap min-w-[180px]">독립변수</th>
+                              <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap min-w-[140px]">독립(원인)</th>
+                              <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap min-w-[120px]">종속(결과)</th>
+                              <th className="px-3.5 py-2.5 text-left font-semibold whitespace-nowrap">경로 구분</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200">
                             {hypothesisRows.map((item) => (
-                              <tr key={item.id} className="hover:bg-slate-50/60">
+                              <tr key={`${item.id}-${item.indep}-${item.dep}`} className="hover:bg-slate-50/60">
                                 <td className={`px-3.5 py-3 font-mono font-bold whitespace-nowrap ${item.color}`}>
                                   {item.id}
                                 </td>
+                                <td className="px-3.5 py-3 text-slate-700">{item.indep}</td>
                                 <td className="px-3.5 py-3 font-semibold text-slate-900 whitespace-nowrap">
                                   {item.dep}
                                 </td>
-                                <td className="px-3.5 py-3 text-slate-700">{item.indep}</td>
+                                <td className="px-3.5 py-3 text-slate-500 whitespace-nowrap">
+                                  {item.roleLabel}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -289,20 +353,35 @@ export const StepUpload: React.FC<StepUploadProps> = ({
         )}
       </div>
 
-      {activeTab === 'mapping' ? (
+      {activeSubTab === 'model' && (
+        <ResearchModelEditor
+          columns={columns}
+          columnProfiles={bundle?.columnProfiles}
+          constructs={constructs}
+          hypothesis={hypothesis}
+          onSaveModel={onSaveResearchModel}
+          onGoToMapping={() => onChangeSubTab('mapping')}
+        />
+      )}
+
+      {activeSubTab === 'mapping' && (
         <StepMapping
           columns={columns}
           columnProfiles={bundle?.columnProfiles}
           constructs={constructs}
           hypothesis={hypothesis}
           efaConfig={efaConfig}
+          highlightVariables={highlightVariables}
           onChangeConstructs={onChangeConstructs}
           onChangeHypothesis={onChangeHypothesis}
           onChangeEFAConfig={onChangeEFAConfig}
           onAutoDetect={onAutoDetect}
+          onOpenModelEditor={() => onChangeSubTab('model')}
           onRunAnalysis={onRunAnalysis}
         />
-      ) : (
+      )}
+
+      {activeSubTab === 'overview' && (
         <>
           {/* Data Input Card: File Upload or Direct Paste */}
           <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">

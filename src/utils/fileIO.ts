@@ -312,7 +312,10 @@ export function autoDetectConstructs(columns: string[], rows?: DataRow[]): Const
     })
     .filter((c) => c.items.length > 0);
 
-  if (detected.length > 0) return detected;
+  const detectedCount = detected.reduce((s, c) => s + c.items.length, 0);
+  if (detected.length >= 4 && detectedCount >= itemCols.length * 0.7) {
+    return detected;
+  }
 
   // Step 3: Generic prefix grouping (handles Q1_1..Q1_3, 만족도1..만족도3, X1..X3, etc.)
   const groups = new Map<string, string[]>();
@@ -350,7 +353,7 @@ export function autoDetectConstructs(columns: string[], rows?: DataRow[]): Const
   }
 
   // Step 4: Pre-aggregated / distinct numeric variables (e.g. 직무만족, 조직몰입, 이직의도)
-  if (itemCols.length >= 2 && itemCols.length <= 10) {
+  if (itemCols.length >= 2 && itemCols.length <= 16) {
     return itemCols.map((col, i) => ({
       id: `c-${i}`,
       name: col,
@@ -358,8 +361,23 @@ export function autoDetectConstructs(columns: string[], rows?: DataRow[]): Const
     }));
   }
 
+  // Step 5: Many ungrouped numeric items (>16): split into multiple constructs so X/M/Y selection remains available
+  if (itemCols.length > 16) {
+    const chunkSize = Math.ceil(itemCols.length / 4);
+    const groupsList: ConstructMapping[] = [];
+    for (let i = 0; i < itemCols.length; i += chunkSize) {
+      const slice = itemCols.slice(i, i + chunkSize);
+      groupsList.push({
+        id: `c-${groupsList.length}`,
+        name: `구성개념 ${groupsList.length + 1}`,
+        items: slice,
+      });
+    }
+    return groupsList;
+  }
+
   return itemCols.length
-    ? [{ id: 'c-0', name: '구성개념 1', items: itemCols.slice(0, Math.min(12, itemCols.length)) }]
+    ? [{ id: 'c-0', name: itemCols[0], items: [itemCols[0]] }]
     : [];
 }
 

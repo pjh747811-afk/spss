@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { EFAConfig, EFAResult, StepIssue } from '../../types/stats';
+import { EFAConfig, EFAResult, SectionVerificationResult, StepIssue } from '../../types/stats';
 import { fmtNum, fmtP } from '../../utils/statistics';
 import { ThesisSection } from '../../utils/thesisWriter';
 import { CopyTableButton } from '../CopyTableButton';
@@ -15,6 +15,7 @@ interface StepFactorAnalysisProps {
   efaConfig: EFAConfig;
   issues?: StepIssue[];
   thesisSection?: ThesisSection;
+  thesisVerification?: SectionVerificationResult;
   onUpdateConfig: (next: EFAConfig) => void;
   onPrev: () => void;
   onNext: () => void;
@@ -34,6 +35,7 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
   efaConfig,
   issues = [],
   thesisSection,
+  thesisVerification,
   onUpdateConfig,
   onPrev,
   onNext,
@@ -380,7 +382,9 @@ export const StepFactorAnalysis: React.FC<StepFactorAnalysisProps> = ({
         )}
       </div>
 
-      {thesisSection && <ThesisSentenceCard section={thesisSection} />}
+      {thesisSection && (
+        <ThesisSentenceCard section={thesisSection} verification={thesisVerification} />
+      )}
 
       <StepFooterNav
         prevLabel="0. 개요 & 데이터"

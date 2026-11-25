@@ -1,6 +1,17 @@
-import React from 'react';
-import { Play, Plus, RotateCcw, Trash2 } from 'lucide-react';
-import { ColumnKind, ColumnProfile, ConstructMapping, EFAConfig, HypothesisConfig } from '../../types/stats';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { GitBranch, Play, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import {
+  ColumnKind,
+  ColumnProfile,
+  ConstructMapping,
+  EFAConfig,
+  HypothesisConfig,
+} from '../../types/stats';
+import {
+  buildDefaultPaths,
+  validateResearchModel,
+} from '../../utils/researchModel';
+import { StepIssuesAlert } from '../StepIssuesAlert';
 
 interface StepMappingProps {
   columns: string[];
@@ -8,10 +19,12 @@ interface StepMappingProps {
   constructs: ConstructMapping[];
   hypothesis: HypothesisConfig;
   efaConfig: EFAConfig;
+  highlightVariables?: boolean;
   onChangeConstructs: (next: ConstructMapping[]) => void;
   onChangeHypothesis: (next: HypothesisConfig) => void;
   onChangeEFAConfig: (next: EFAConfig) => void;
   onAutoDetect: () => void;
+  onOpenModelEditor?: () => void;
   onRunAnalysis: () => void;
 }
 
@@ -29,14 +42,23 @@ export const StepMapping: React.FC<StepMappingProps> = ({
   constructs,
   hypothesis,
   efaConfig,
+  highlightVariables = false,
   onChangeConstructs,
   onChangeHypothesis,
   onChangeEFAConfig,
   onAutoDetect,
+  onOpenModelEditor,
   onRunAnalysis,
 }) => {
+  const varSectionRef = useRef<HTMLDivElement>(null);
   const profileMap = new Map(columnProfiles.map((p) => [p.name, p]));
   const itemColumns = columns.filter((c) => profileMap.get(c)?.kind !== 'empty');
+
+  useEffect(() => {
+    if (highlightVariables && varSectionRef.current) {
+      varSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightVariables]);
 
   const toggleItemInConstruct = (constructId: string, item: string) => {
     onChangeConstructs(
@@ -56,9 +78,10 @@ export const StepMapping: React.FC<StepMappingProps> = ({
   };
 
   const addConstruct = () => {
+    const nextIdx = constructs.length + 1;
     onChangeConstructs([
       ...constructs,
-      { id: `c-${Date.now()}`, name: `새 구성개념 ${constructs.length + 1}`, items: [] },
+      { id: `c-${Date.now()}-${nextIdx}`, name: `구성개념 ${nextIdx}`, items: [] },
     ]);
   };
 
@@ -66,14 +89,37 @@ export const StepMapping: React.FC<StepMappingProps> = ({
     onChangeConstructs(constructs.filter((c) => c.id !== constructId));
   };
 
+  const updateRolesAndPaths = (nextHyp: HypothesisConfig) => {
+    onChangeHypothesis({
+      ...nextHyp,
+      paths: buildDefaultPaths(nextHyp, constructs),
+    });
+  };
+
   const toggleIndep = (name: string) => {
     const exists = hypothesis.independents.includes(name);
-    onChangeHypothesis({
+    const nextIndeps = exists
+      ? hypothesis.independents.filter((n) => n !== name)
+      : [...hypothesis.independents, name];
+
+    updateRolesAndPaths({
       ...hypothesis,
-      independents: exists
-        ? hypothesis.independents.filter((n) => n !== name)
-        : [...hypothesis.independents, name],
+      independents: nextIndeps,
+      dependent: !exists && hypothesis.dependent === name ? '' : hypothesis.dependent,
+      mediator: !exists && hypothesis.mediator === name ? '' : hypothesis.mediator,
     });
+  };
+
+  const addIndepFromCombo = (name: string) => {
+    if (!name) return;
+    if (!hypothesis.independents.includes(name)) {
+      updateRolesAndPaths({
+        ...hypothesis,
+        independents: [...hypothesis.independents, name],
+        dependent: hypothesis.dependent === name ? '' : hypothesis.dependent,
+        mediator: hypothesis.mediator === name ? '' : hypothesis.mediator,
+      });
+    }
   };
 
   const toggleControl = (colName: string) => {
@@ -86,7 +132,11 @@ export const StepMapping: React.FC<StepMappingProps> = ({
     });
   };
 
-  const validConstructNames = constructs.filter((c) => c.items.length > 0).map((c) => c.name);
+  // Show ALL registered constructs (never hide constructs just because items haven't been assigned yet)
+  const allConstructs = constructs.filter((c) => c.name.trim().length > 0);
+  const allConstructNames = allConstructs.map((c) => c.name);
+  const itemCountByName = new Map(allConstructs.map((c) => [c.name, c.items.length]));
+
   const assignedItems = new Set(constructs.flatMap((c) => c.items));
   const controlCandidates = columns.filter((col) => {
     if (assignedItems.has(col)) return false;
@@ -94,33 +144,64 @@ export const StepMapping: React.FC<StepMappingProps> = ({
     return kind !== 'empty' && kind !== 'text' && kind !== 'constant';
   });
 
-  if (!columns.length) {
+  const resolvedPaths = useMemo(
+    () =>
+      hypothesis.paths && hypothesis.paths.length > 0
+        ? hypothesis.paths
+        : buildDefaultPaths(hypothesis, constructs),
+    [hypothesis, constructs]
+  );
+
+  const modelValidation = useMemo(
+    () => validateResearchModel(constructs, hypothesis, columns.length ? columns : undefined),
+    [constructs, hypothesis, columns]
+  );
+
+  if (!columns.length && constructs.length === 0) {
     return (
       <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
-        <p className="text-sm font-medium text-slate-700">데이터를 먼저 업로드하세요.</p>
+        <p className="text-sm font-medium text-slate-700">
+          데이터를 업로드하거나 [연구모형 데이터 입력]에서 구성개념을 먼저 등록하세요.
+        </p>
       </div>
     );
   }
 
+  const missingIndep = hypothesis.independents.length === 0;
+  const missingDep = !hypothesis.dependent;
+
   return (
     <div className="space-y-6">
+      {/* 1. Constructs & Item Mapping */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-200">
           <div>
             <h3 className="text-base sm:text-lg font-bold text-slate-900">구성개념 및 문항 매핑</h3>
             <p className="text-xs sm:text-sm text-slate-600 mt-1">
-              요인분석·신뢰도·합변수 계산에 사용할 문항을 구성개념별로 연결합니다. (자동 매핑 기본 적용됨)
+              연구모형에서 등록한 모든 구성개념과 데이터 문항을 연결합니다. 변경사항은 자동으로 저장·반영됩니다.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={onAutoDetect}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300/90 bg-white px-3.5 py-2 min-h-[40px] text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.03)] hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4 shrink-0" />
-              <span>문항 자동 매핑</span>
-            </button>
+            {onOpenModelEditor && (
+              <button
+                type="button"
+                onClick={onOpenModelEditor}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2 min-h-[40px] text-xs font-semibold text-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <GitBranch className="w-4 h-4 shrink-0" />
+                <span>연구모형 데이터 입력</span>
+              </button>
+            )}
+            {columns.length > 0 && (
+              <button
+                type="button"
+                onClick={onAutoDetect}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300/90 bg-white px-3.5 py-2 min-h-[40px] text-xs font-semibold text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.03)] hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4 shrink-0" />
+                <span>문항 자동 매핑</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={addConstruct}
@@ -146,7 +227,11 @@ export const StepMapping: React.FC<StepMappingProps> = ({
                     onChange={(e) => updateConstructName(c.id, e.target.value)}
                     className="border border-slate-300 rounded-xl px-3 py-1.5 min-h-[40px] w-full sm:w-56 min-w-0 text-sm font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                   />
-                  <span className="text-xs text-slate-500 font-mono tabular-nums font-medium whitespace-nowrap">
+                  <span
+                    className={`text-xs font-mono tabular-nums font-medium whitespace-nowrap ${
+                      c.items.length === 0 ? 'text-amber-700' : 'text-slate-500'
+                    }`}
+                  >
                     선택 문항 {c.items.length}개
                   </span>
                 </div>
@@ -162,86 +247,170 @@ export const StepMapping: React.FC<StepMappingProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-x-3 gap-y-2 pl-0 sm:pl-8">
-                {itemColumns.map((col) => {
-                  const checked = c.items.includes(col);
-                  const prof = profileMap.get(col);
-                  const kindMeta = prof ? KIND_LABELS[prof.kind] : null;
-                  return (
-                    <label
-                      key={col}
-                      className={`inline-flex items-center gap-1.5 text-xs cursor-pointer select-none py-1 px-2 rounded-lg transition-colors ${
-                        checked
-                          ? 'text-blue-800 font-semibold bg-blue-50/70'
-                          : prof && prof.kind !== 'numeric'
-                            ? 'text-slate-400 hover:bg-slate-50'
-                            : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                      title={
-                        prof
-                          ? `${col} · 유효값 ${prof.validCount}건, 결측 ${prof.missingCount}건`
-                          : col
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleItemInConstruct(c.id, col)}
-                        className="w-4 h-4 accent-blue-700 rounded cursor-pointer"
-                      />
-                      <span>{col}</span>
-                      {kindMeta && prof?.kind !== 'numeric' && (
-                        <span
-                          className={`text-[10px] px-1.5 py-0.2 rounded border font-medium ${kindMeta.cls}`}
-                        >
-                          {kindMeta.label}
-                        </span>
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
+              {itemColumns.length > 0 ? (
+                <div className="flex flex-wrap gap-x-3 gap-y-2 pl-0 sm:pl-8">
+                  {itemColumns.map((col) => {
+                    const checked = c.items.includes(col);
+                    const prof = profileMap.get(col);
+                    const kindMeta = prof ? KIND_LABELS[prof.kind] : null;
+                    return (
+                      <label
+                        key={col}
+                        className={`inline-flex items-center gap-1.5 text-xs cursor-pointer select-none py-1 px-2 rounded-lg transition-colors ${
+                          checked
+                            ? 'text-blue-800 font-semibold bg-blue-50/70'
+                            : prof && prof.kind !== 'numeric'
+                              ? 'text-slate-400 hover:bg-slate-50'
+                              : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                        title={
+                          prof
+                            ? `${col} · 유효값 ${prof.validCount}건, 결측 ${prof.missingCount}건`
+                            : col
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleItemInConstruct(c.id, col)}
+                          className="w-4 h-4 accent-blue-700 rounded cursor-pointer"
+                        />
+                        <span>{col}</span>
+                        {kindMeta && prof?.kind !== 'numeric' && (
+                          <span
+                            className={`text-[10px] px-1.5 py-0.2 rounded border font-medium ${kindMeta.cls}`}
+                          >
+                            {kindMeta.label}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 pl-0 sm:pl-8">
+                  {c.items.length > 0
+                    ? `등록된 문항: ${c.items.join(', ')} (데이터 파일 업로드 시 자동 매칭됨)`
+                    : '데이터 파일을 업로드하거나 [연구모형 데이터 입력]에서 측정문항을 연결할 수 있습니다.'}
+                </p>
+              )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Research Model & EFA Options */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)]">
-        <h3 className="text-base sm:text-lg font-bold text-slate-900 pb-3.5 border-b border-slate-200">
-          연구모형(가설 H1~H3 · 매개 · 통제 · 조절) 및 요인분석 옵션
-        </h3>
+      {/* 2. Research Model & Variable Selection (Highlight target for Step 5 / Toast jumps) */}
+      <div
+        id="step0-variable-mapping"
+        ref={varSectionRef}
+        className={`bg-white rounded-2xl p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_16px_-4px_rgba(15,23,42,0.03)] transition-all ${
+          highlightVariables
+            ? 'border-2 border-blue-600 ring-4 ring-blue-600/15'
+            : 'border border-slate-200/90'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3.5 border-b border-slate-200">
+          <div>
+            <h3 className="text-base sm:text-lg font-bold text-slate-900">
+              연구모형(가설 H1~H3 · 독립 X · 매개 M · 종속 Y · 통제 · 조절) 및 요인분석 옵션
+            </h3>
+            {hypothesis.modelName && (
+              <p className="text-xs text-blue-700 font-semibold mt-1">
+                모형명: {hypothesis.modelName}
+              </p>
+            )}
+          </div>
+          <span className="text-xs font-mono text-slate-500 whitespace-nowrap">
+            등록 구성개념 {allConstructNames.length}개
+          </span>
+        </div>
+
+        {modelValidation.issues.length > 0 && (
+          <div className="mt-4">
+            <StepIssuesAlert issues={modelValidation.issues} title="변수 매핑 · 가설 경로 확인" />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 mt-5">
-          <div className="min-w-0">
-            <label className="block text-xs font-bold text-slate-700 mb-2">
-              독립변수 (X · H1, H3 독립변수)
-            </label>
-            <div className="border border-slate-200 rounded-xl p-3.5 space-y-2 bg-slate-50/60 max-h-48 overflow-y-auto">
-              {validConstructNames.map((name) => {
-                const isMedOrDep = name === hypothesis.mediator || name === hypothesis.dependent;
-                const checked = hypothesis.independents.includes(name);
-                return (
-                  <label
-                    key={name}
-                    className={`flex items-center gap-2 text-xs cursor-pointer py-0.5 ${
-                      isMedOrDep ? 'text-slate-400' : 'text-slate-800 font-medium'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={isMedOrDep}
-                      onChange={() => toggleIndep(name)}
-                      className="w-4 h-4 accent-blue-700"
-                    />
-                    <span>{name}</span>
-                  </label>
-                );
-              })}
+          {/* Column 1: Independent (X) Combobox + Multi-Select + Controls */}
+          <div className="min-w-0 space-y-4">
+            <div>
+              <label htmlFor="sel-independent" className="block text-xs font-bold text-slate-700 mb-2">
+                독립변수 (X · 1개 이상 / 다중 선택)
+              </label>
+
+              {/* Enabled Independent Variable Combobox */}
+              <select
+                id="sel-independent"
+                value={hypothesis.independents[0] ?? ''}
+                disabled={allConstructNames.length === 0}
+                onChange={(e) => {
+                  const picked = e.target.value;
+                  if (!picked) {
+                    updateRolesAndPaths({ ...hypothesis, independents: [] });
+                    return;
+                  }
+                  if (hypothesis.independents.length <= 1) {
+                    updateRolesAndPaths({
+                      ...hypothesis,
+                      independents: [picked],
+                      dependent: hypothesis.dependent === picked ? '' : hypothesis.dependent,
+                      mediator: hypothesis.mediator === picked ? '' : hypothesis.mediator,
+                    });
+                  } else {
+                    addIndepFromCombo(picked);
+                  }
+                }}
+                className={`w-full border rounded-xl px-3.5 py-2 min-h-[42px] text-sm bg-white text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 mb-2.5 ${
+                  missingIndep ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                }`}
+              >
+                <option value="">독립변수(X) 선택하세요</option>
+                {allConstructNames.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                    {(itemCountByName.get(n) ?? 0) === 0 ? ' (문항 미연결)' : ''}
+                  </option>
+                ))}
+              </select>
+
+              {/* Multi-select Checkboxes (never disabled when constructs exist) */}
+              <div className="border border-slate-200 rounded-xl p-3.5 space-y-2 bg-slate-50/60 max-h-48 overflow-y-auto">
+                {allConstructNames.map((name) => {
+                  const isDep = name === hypothesis.dependent;
+                  const isMed = name === hypothesis.mediator;
+                  const checked = hypothesis.independents.includes(name);
+                  const itemsLen = itemCountByName.get(name) ?? 0;
+                  return (
+                    <label
+                      key={name}
+                      className="flex items-center justify-between gap-2 text-xs cursor-pointer py-0.5 text-slate-800 font-medium"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleIndep(name)}
+                          className="w-4 h-4 accent-blue-700 cursor-pointer shrink-0"
+                        />
+                        <span className="truncate">{name}</span>
+                      </span>
+                      <span className="text-[11px] text-slate-500 shrink-0">
+                        {isDep
+                          ? '현재 Y'
+                          : isMed
+                            ? '현재 M'
+                            : itemsLen === 0
+                              ? '문항 0개'
+                              : `${itemsLen}문항`}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="mt-4">
+            <div>
               <label className="block text-xs font-bold text-slate-700 mb-2">
                 통제변수 (선택 · 인구통계 등 회귀식 통제)
               </label>
@@ -273,6 +442,7 @@ export const StepMapping: React.FC<StepMappingProps> = ({
             </div>
           </div>
 
+          {/* Column 2: Mediator (M), Dependent (Y) Combobox, Moderation */}
           <div className="min-w-0">
             <label htmlFor="sel-mediator" className="block text-xs font-bold text-slate-700 mb-2">
               매개변수 (M · H1 종속 / H2 독립)
@@ -280,24 +450,25 @@ export const StepMapping: React.FC<StepMappingProps> = ({
             <select
               id="sel-mediator"
               value={hypothesis.mediator}
+              disabled={allConstructNames.length === 0}
               onChange={(e) => {
                 const nextMed = e.target.value;
-                onChangeHypothesis({
+                updateRolesAndPaths({
                   ...hypothesis,
                   mediator: nextMed,
                   independents: hypothesis.independents.filter((n) => n !== nextMed),
+                  dependent: hypothesis.dependent === nextMed ? '' : hypothesis.dependent,
                 });
               }}
               className="w-full border border-slate-300 rounded-xl px-3.5 py-2 min-h-[42px] text-sm bg-white text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
             >
               <option value="">선택 안 함 (직접회귀 모형)</option>
-              {validConstructNames
-                .filter((n) => n !== hypothesis.dependent)
-                .map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
+              {allConstructNames.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                  {(itemCountByName.get(n) ?? 0) === 0 ? ' (문항 미연결)' : ''}
+                </option>
+              ))}
             </select>
 
             <div className="mt-4">
@@ -307,21 +478,25 @@ export const StepMapping: React.FC<StepMappingProps> = ({
               <select
                 id="sel-dependent"
                 value={hypothesis.dependent}
+                disabled={allConstructNames.length === 0}
                 onChange={(e) => {
                   const nextDep = e.target.value;
-                  onChangeHypothesis({
+                  updateRolesAndPaths({
                     ...hypothesis,
                     dependent: nextDep,
                     mediator: hypothesis.mediator === nextDep ? '' : hypothesis.mediator,
                     independents: hypothesis.independents.filter((n) => n !== nextDep),
                   });
                 }}
-                className="w-full border border-slate-300 rounded-xl px-3.5 py-2 min-h-[42px] text-sm bg-white text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                className={`w-full border rounded-xl px-3.5 py-2 min-h-[42px] text-sm bg-white text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 ${
+                  missingDep ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                }`}
               >
                 <option value="">선택하세요</option>
-                {validConstructNames.map((n) => (
+                {allConstructNames.map((n) => (
                   <option key={n} value={n}>
                     {n}
+                    {(itemCountByName.get(n) ?? 0) === 0 ? ' (문항 미연결)' : ''}
                   </option>
                 ))}
               </select>
@@ -341,7 +516,7 @@ export const StepMapping: React.FC<StepMappingProps> = ({
                   className="border border-slate-300 rounded-xl px-2.5 py-2 min-h-[40px] text-xs bg-white text-slate-800"
                 >
                   <option value="">독립(X)</option>
-                  {validConstructNames.map((n) => (
+                  {allConstructNames.map((n) => (
                     <option key={n} value={n}>
                       {n}
                     </option>
@@ -356,7 +531,7 @@ export const StepMapping: React.FC<StepMappingProps> = ({
                   className="border border-slate-300 rounded-xl px-2.5 py-2 min-h-[40px] text-xs bg-white text-slate-800"
                 >
                   <option value="">조절(W)</option>
-                  {validConstructNames.map((n) => (
+                  {allConstructNames.map((n) => (
                     <option key={n} value={n}>
                       {n}
                     </option>
@@ -371,7 +546,7 @@ export const StepMapping: React.FC<StepMappingProps> = ({
                   className="border border-slate-300 rounded-xl px-2.5 py-2 min-h-[40px] text-xs bg-white text-slate-800"
                 >
                   <option value="">종속(Y)</option>
-                  {validConstructNames.map((n) => (
+                  {allConstructNames.map((n) => (
                     <option key={n} value={n}>
                       {n}
                     </option>
@@ -381,6 +556,7 @@ export const StepMapping: React.FC<StepMappingProps> = ({
             </div>
           </div>
 
+          {/* Column 3: EFA Options */}
           <div className="space-y-4 min-w-0">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-2">
@@ -444,26 +620,42 @@ export const StepMapping: React.FC<StepMappingProps> = ({
           </div>
         </div>
 
-        <div className="mt-6 pt-5 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="text-xs sm:text-sm text-slate-600">
-            가설 경로:{' '}
-            <span className="font-semibold text-slate-900">
-              {hypothesis.independents.join(', ') || '없음'}
-            </span>
-            {' → '}
-            <span className="font-semibold text-blue-700">{hypothesis.mediator || '미지정'}</span>
-            {' → '}
-            <span className="font-semibold text-emerald-700">{hypothesis.dependent || '미지정'}</span>
-            {hypothesis.controls.length > 0 && (
-              <span className="ml-2 text-slate-500">
-                (통제: {hypothesis.controls.join(', ')})
-              </span>
-            )}
+        {/* Footer: Auto-connected Hypothesis Paths & Run Analysis */}
+        <div className="mt-6 pt-5 border-t border-slate-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="space-y-1.5 min-w-0">
+            <div className="text-xs sm:text-sm text-slate-700">
+              <span className="font-semibold text-slate-900">가설 경로: </span>
+              {resolvedPaths.length > 0 ? (
+                <span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
+                  {resolvedPaths.map((p) => (
+                    <span
+                      key={`${p.id}-${p.from}-${p.to}`}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-medium text-slate-800"
+                    >
+                      <span className="font-mono font-bold text-blue-700">{p.id}</span>
+                      <span>{p.from}</span>
+                      <span className="text-slate-400">→</span>
+                      <span className="font-semibold text-emerald-700">{p.to}</span>
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                <span className="text-amber-700 font-medium">
+                  독립변수(X)와 종속변수(Y)를 선택하면 가설 경로가 자동 연결됩니다.
+                </span>
+              )}
+              {hypothesis.controls.length > 0 && (
+                <span className="ml-2 text-xs text-slate-500">
+                  (통제: {hypothesis.controls.join(', ')})
+                </span>
+              )}
+            </div>
           </div>
+
           <button
             type="button"
             onClick={onRunAnalysis}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 py-2.5 min-h-[44px] text-xs font-semibold text-white shadow-sm hover:bg-blue-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="w-full lg:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 py-2.5 min-h-[44px] text-xs font-semibold text-white shadow-sm hover:bg-blue-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Play className="w-4 h-4 shrink-0" />
             <span>설정 적용 후 1. 요인분석 시작</span>

@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
+import { AlertTriangle, CheckCircle2, Play, SlidersHorizontal } from 'lucide-react';
 import {
   CompositeSummary,
   HypothesisConfig,
   MediationAnalysisResult,
   ModerationResult,
   RegressionResult,
+  SectionVerificationResult,
   StepIssue,
 } from '../../types/stats';
+import { buildDefaultPaths } from '../../utils/researchModel';
 import { fmtNum, fmtP, getHypothesisVerdict, sigStars } from '../../utils/statistics';
 import { ThesisSection } from '../../utils/thesisWriter';
 import { CopyTableButton } from '../CopyTableButton';
@@ -27,7 +30,12 @@ interface StepRegressionProps {
   regressionThesis?: ThesisSection;
   mediationThesis?: ThesisSection;
   moderationThesis?: ThesisSection;
+  regressionVerification?: SectionVerificationResult;
+  mediationVerification?: SectionVerificationResult;
+  moderationVerification?: SectionVerificationResult;
   onUpdateModeration: (x?: string, w?: string, y?: string) => void;
+  onGoToMapping?: () => void;
+  onRunRegression?: () => void;
   onPrev: () => void;
   onNext: () => void;
 }
@@ -292,6 +300,141 @@ const RegressionBlock: React.FC<{ reg: RegressionResult }> = ({ reg }) => {
   );
 };
 
+const MappingDiagnosticBanner: React.FC<{
+  hypothesis: HypothesisConfig;
+  composites: CompositeSummary[];
+  regressionsCount: number;
+  onGoToMapping?: () => void;
+  onRunRegression?: () => void;
+}> = ({ hypothesis, composites, regressionsCount, onGoToMapping, onRunRegression }) => {
+  const compSet = new Set(composites.filter((c) => c.n > 0).map((c) => c.name));
+  const missingItems: string[] = [];
+  if (!hypothesis.independents.length) {
+    missingItems.push('독립변수(X)가 지정되지 않았습니다.');
+  } else {
+    const invalidX = hypothesis.independents.filter((n) => !compSet.has(n));
+    if (invalidX.length) {
+      missingItems.push(`독립변수 [${invalidX.join(', ')}]의 유효 수치 합변수가 없습니다.`);
+    }
+  }
+  if (!hypothesis.dependent) {
+    missingItems.push('종속변수(Y)가 지정되지 않았습니다.');
+  } else if (!compSet.has(hypothesis.dependent)) {
+    missingItems.push(`종속변수 [${hypothesis.dependent}]의 유효 수치 합변수가 없습니다.`);
+  }
+  if (hypothesis.dependent && hypothesis.independents.includes(hypothesis.dependent)) {
+    missingItems.push('독립변수(X)와 종속변수(Y)가 동일한 변수로 지정되었습니다.');
+  }
+
+  const canRun = missingItems.length === 0;
+  const paths =
+    hypothesis.paths && hypothesis.paths.length > 0
+      ? hypothesis.paths
+      : buildDefaultPaths(hypothesis);
+
+  return (
+    <div
+      className={`rounded-2xl border p-4 sm:p-5 space-y-3.5 ${
+        canRun
+          ? 'bg-slate-50/90 border-slate-200/90'
+          : 'bg-amber-50/70 border-amber-300'
+      }`}
+    >
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex items-start gap-2.5 min-w-0">
+          {canRun ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          ) : (
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          )}
+          <div className="min-w-0">
+            <div className="text-sm font-bold text-slate-900">
+              회귀분석 변수 매핑 · 모형 진단 상태
+              {hypothesis.modelName ? ` (${hypothesis.modelName})` : ''}
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">
+              {canRun
+                ? `0단계에서 매핑한 X·Y 변수가 정상 연결되어 ${regressionsCount}개 회귀 모형이 준비되었습니다.`
+                : '아래 누락 항목을 확인하고 0단계 변수 매핑에서 변수를 지정해 주세요.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {onGoToMapping && (
+            <button
+              type="button"
+              onClick={onGoToMapping}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 min-h-[38px] text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+              <span>0단계 변수 매핑 확인하기</span>
+            </button>
+          )}
+          {onRunRegression && (
+            <button
+              type="button"
+              onClick={onRunRegression}
+              disabled={!canRun}
+              title={canRun ? '현재 매핑으로 회귀분석 실행' : missingItems.join(' ')}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2 min-h-[38px] text-xs font-semibold text-white shadow-sm hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              <Play className="w-3.5 h-3.5 shrink-0" />
+              <span>회귀분석 실행</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+        <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
+          <span className="text-slate-500 font-medium">독립변수(X): </span>
+          <span className={hypothesis.independents.length ? 'font-bold text-slate-900' : 'font-bold text-red-600'}>
+            {hypothesis.independents.length ? hypothesis.independents.join(', ') : '미지정 (누락)'}
+          </span>
+        </div>
+        <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
+          <span className="text-slate-500 font-medium">매개변수(M): </span>
+          <span className="font-semibold text-blue-700">
+            {hypothesis.mediator || '선택 안 함 (직접회귀)'}
+          </span>
+        </div>
+        <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
+          <span className="text-slate-500 font-medium">종속변수(Y): </span>
+          <span className={hypothesis.dependent ? 'font-bold text-emerald-700' : 'font-bold text-red-600'}>
+            {hypothesis.dependent || '미지정 (누락)'}
+          </span>
+        </div>
+      </div>
+
+      {paths.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="font-semibold text-slate-600">연결된 가설 경로:</span>
+          {paths.map((p) => (
+            <span
+              key={`${p.id}-${p.from}-${p.to}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-800 font-medium"
+            >
+              <span className="font-mono font-bold text-blue-700">{p.id}</span>
+              <span>{p.from} → {p.to}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {missingItems.length > 0 && (
+        <ul className="text-xs text-amber-900 space-y-1 list-disc list-inside bg-white/80 rounded-xl px-3.5 py-2.5 border border-amber-200">
+          {missingItems.map((msg) => (
+            <li key={msg} className="font-medium">
+              {msg}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 export const StepRegression: React.FC<StepRegressionProps> = ({
   regressions,
   mediation,
@@ -302,20 +445,34 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
   regressionThesis,
   mediationThesis,
   moderationThesis,
+  regressionVerification,
+  mediationVerification,
+  moderationVerification,
   onUpdateModeration,
+  onGoToMapping,
+  onRunRegression,
   onPrev,
   onNext,
 }) => {
   if (!regressions.length) {
     return (
       <div className="space-y-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 space-y-4">
-          <div className="text-center">
-            <p className="text-sm font-semibold text-slate-800">회귀분석 결과를 산출할 수 없습니다.</p>
-            <p className="text-xs text-slate-500 mt-1">
-              0단계 [변수 매핑 · 모형 설정]에서 독립변수(X)와 종속변수(Y)가 서로 다른 유효 수치 구성개념으로 연결되었는지 확인하세요.
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-7 space-y-5">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-slate-900">
+              5. 회귀분석 (H1~H3) · 매개 및 조절효과 검증
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+              0단계 변수 매핑이 완료되면 회귀분석과 매개·조절효과가 자동으로 실행됩니다.
             </p>
           </div>
+          <MappingDiagnosticBanner
+            hypothesis={hypothesis}
+            composites={composites}
+            regressionsCount={0}
+            onGoToMapping={onGoToMapping}
+            onRunRegression={onRunRegression}
+          />
           {issues.length > 0 && <StepIssuesAlert issues={issues} title="회귀·매개분석 진단" />}
         </div>
         <StepFooterNav prevLabel="4. 상관분석" nextLabel="6. 결과 요약 & 논문 문장 작성" onPrev={onPrev} onNext={onNext} />
@@ -395,6 +552,14 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
           steps={SPSS_REG_STEPS}
         />
 
+        <MappingDiagnosticBanner
+          hypothesis={hypothesis}
+          composites={composites}
+          regressionsCount={regressions.length}
+          onGoToMapping={onGoToMapping}
+          onRunRegression={onRunRegression}
+        />
+
         {issues.length > 0 && <StepIssuesAlert issues={issues} />}
 
         <PathDiagram
@@ -413,7 +578,9 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
         <RegressionBlock key={reg.id} reg={reg} />
       ))}
 
-      {regressionThesis && <ThesisSentenceCard section={regressionThesis} />}
+      {regressionThesis && (
+        <ThesisSentenceCard section={regressionThesis} verification={regressionVerification} />
+      )}
 
       {/* Mediation Analysis Block (Step 4 + Sobel + Bootstrap) */}
       {mediation && mediation.step4Regression && (
@@ -520,7 +687,9 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
             </p>
           </div>
 
-          {mediationThesis && <ThesisSentenceCard section={mediationThesis} />}
+          {mediationThesis && (
+            <ThesisSentenceCard section={mediationThesis} verification={mediationVerification} />
+          )}
         </div>
       )}
 
@@ -784,7 +953,9 @@ export const StepRegression: React.FC<StepRegressionProps> = ({
             )}
           </div>
 
-          {moderationThesis && <ThesisSentenceCard section={moderationThesis} />}
+          {moderationThesis && (
+            <ThesisSentenceCard section={moderationThesis} verification={moderationVerification} />
+          )}
         </div>
       )}
 

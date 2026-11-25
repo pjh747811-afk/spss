@@ -1,22 +1,58 @@
-import React, { useEffect, useState } from 'react';
-import { BookOpen, Check, Copy, Download, FileSpreadsheet, FileText, Printer, RotateCcw } from 'lucide-react';
-import { AnalysisBundle } from '../../types/stats';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  BookOpen,
+  Check,
+  CheckCircle2,
+  Copy,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Printer,
+  RotateCcw,
+  Sparkles,
+} from 'lucide-react';
+import {
+  AnalysisBundle,
+  ConstructMapping,
+  DataRow,
+  EFAConfig,
+  HypothesisConfig,
+  SectionVerificationResult,
+  VerificationHistoryEntry,
+} from '../../types/stats';
 import {
   downloadCompositesCSV,
   downloadExcelWorkbook,
   downloadSummaryCSV,
   downloadThesisText,
 } from '../../utils/fileIO';
+import {
+  appendVerificationHistory,
+  clearVerificationHistory,
+  loadVerificationStore,
+  saveVerificationSnapshot,
+} from '../../utils/modelStore';
 import { fmtNum, fmtP, getHypothesisVerdict, sigStars } from '../../utils/statistics';
+import { verifyThesisSections } from '../../utils/thesisVerifier';
 import { ThesisSection, ThesisStyle } from '../../utils/thesisWriter';
 import { AcademicTablesPanel } from '../AcademicTablesPanel';
 import { ScrollableTable } from '../ScrollableTable';
 import { StepFooterNav } from '../StepFooterNav';
 import { StepIssuesAlert } from '../StepIssuesAlert';
+import {
+  AppliedFixBanner,
+  StatusBadge,
+  ThesisVerificationReport,
+} from '../ThesisVerificationReport';
+import { useOptionalToast } from '../ToastCenter';
 
 interface StepReportProps {
   bundle: AnalysisBundle | null;
   fileName: string;
+  rows: DataRow[];
+  constructs: ConstructMapping[];
+  hypothesis: HypothesisConfig;
+  efaConfig: EFAConfig;
   thesisSections: ThesisSection[];
   onPrev: () => void;
   onResetToStart: () => void;
@@ -25,6 +61,10 @@ interface StepReportProps {
 export const StepReport: React.FC<StepReportProps> = ({
   bundle,
   fileName,
+  rows,
+  constructs,
+  hypothesis,
+  efaConfig,
   thesisSections,
   onPrev,
   onResetToStart,
@@ -33,11 +73,51 @@ export const StepReport: React.FC<StepReportProps> = ({
   const [editedTexts, setEditedTexts] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [recentlyAppliedIds, setRecentlyAppliedIds] = useState<Record<string, boolean>>({});
+  const [lastAppliedBanner, setLastAppliedBanner] = useState<AppliedFixBanner | null>(null);
+  const [history, setHistory] = useState<VerificationHistoryEntry[]>(
+    () => loadVerificationStore().history
+  );
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const highlightTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const toast = useOptionalToast();
 
   // Reset user edits when dataset/bundle or style changes
   useEffect(() => {
     setEditedTexts({});
+    setRecentlyAppliedIds({});
+    setLastAppliedBanner(null);
   }, [bundle?.timestamp, style]);
+
+  useEffect(() => {
+    const timers = highlightTimersRef.current;
+    return () => {
+      Object.values(timers).forEach((t) => clearTimeout(t));
+    };
+  }, []);
+
+  // Reactive 8-rule verification + independent mathematical cross-check
+  const verificationReport = useMemo(
+    () =>
+      verifyThesisSections({
+        rows,
+        constructs,
+        hypothesis,
+        efaConfig,
+        bundle,
+        sections: thesisSections,
+        style,
+        editedTexts,
+      }),
+    [rows, constructs, hypothesis, efaConfig, bundle, thesisSections, style, editedTexts]
+  );
+
+  // Persist verification snapshot whenever report updates
+  useEffect(() => {
+    if (!bundle || verificationReport.totalSections === 0) return;
+    saveVerificationSnapshot(verificationReport);
+  }, [bundle, verificationReport]);
 
   if (!bundle) {
     return (
@@ -80,6 +160,212 @@ export const StepReport: React.FC<StepReportProps> = ({
     } catch {
       // ignore clipboard errors
     }
+  };
+
+  const jumpToSection = (sectionId: string) => {
+    const el = sectionRefs.current[sectionId];
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    const ta = textareaRefs.current[sectionId];
+    if (ta && typeof ta.focus === 'function') {
+      setTimeout(() => {
+        ta.focus({ preventScroll: true });
+      }, 220);
+    }
+  };
+
+  const markSectionApplied = (sectionId: string) => {
+    setRecentlyAppliedIds((prev) => ({ ...prev, [sectionId]: true }));
+    if (highlightTimersRef.current[sectionId]) {
+      clearTimeout(highlightTimersRef.current[sectionId]);
+    }
+    highlightTimersRef.current[sectionId] = setTimeout(() => {
+      setRecentlyAppliedIds((prev) => {
+        const next = { ...prev };
+        delete next[sectionId];
+        return next;
+      });
+    }, 3500);
+  };
+
+  const computeNextEditedTexts = (
+    base: Record<string, string>,
+    updates: Array<{ sectionId: string; revised: string }>
+  ) => {
+    const next = { ...base };
+    for (const { sectionId, revised } of updates) {
+      const targetSec = thesisSections.find((s) => s.id === sectionId);
+      const autoText = targetSec
+        ? style === 'standard'
+          ? targetSec.standardText
+          : targetSec.conciseText
+        : null;
+      if (autoText !== null && revised === autoText) {
+        delete next[sectionId];
+      } else {
+        next[sectionId] = revised;
+      }
+    }
+    return next;
+  };
+
+  const handleApplyFix = (
+    secResult: SectionVerificationResult,
+    options?: { scrollOnResolve?: boolean }
+  ) => {
+    if (!secResult.suggestedText) return;
+    const revised = secResult.suggestedText;
+    const nextEdited = computeNextEditedTexts(editedTexts, [
+      { sectionId: secResult.sectionId, revised },
+    ]);
+    setEditedTexts(nextEdited);
+
+    const nextReport = verifyThesisSections({
+      rows,
+      constructs,
+      hypothesis,
+      efaConfig,
+      bundle,
+      sections: thesisSections,
+      style,
+      editedTexts: nextEdited,
+    });
+    const nextSec = nextReport.sectionResults.find(
+      (r) => r.sectionId === secResult.sectionId
+    );
+    const nextStatus = nextSec?.status ?? 'pass';
+
+    const reasonSummary = secResult.issues.length
+      ? `${secResult.issues.map((i) => i.ruleNumber).join(', ')} 수정 제안 적용`
+      : '수정된 논문 문장 적용';
+    const nextHistory = appendVerificationHistory({
+      id: `${Date.now()}_${secResult.sectionId}`,
+      timestamp: Date.now(),
+      fileName,
+      sectionId: secResult.sectionId,
+      sectionTitle: secResult.sectionTitle,
+      action: 'apply_fix',
+      previousStatus: secResult.status,
+      nextStatus,
+      previousText: secResult.originalText,
+      revisedText: revised,
+      reasonSummary,
+    });
+    setHistory(nextHistory);
+    markSectionApplied(secResult.sectionId);
+    setLastAppliedBanner({
+      sectionId: secResult.sectionId,
+      sectionTitle: secResult.sectionTitle,
+      appliedCount: 1,
+      passRate: nextReport.passRate,
+    });
+
+    toast?.pushToast({
+      severity: 'success',
+      title: '수정된 논문 문장 적용 완료',
+      message: `‘${secResult.sectionTitle}’ 절에 검증된 수정 문장이 본문에 반영되었습니다. (통과율 ${nextReport.passRate.toFixed(1)}%)`,
+    });
+
+    const remainingFlagged = nextReport.sectionResults.filter((r) => r.status !== 'pass').length;
+    if (options?.scrollOnResolve && remainingFlagged === 0) {
+      jumpToSection(secResult.sectionId);
+    }
+  };
+
+  const handleApplyAllFixes = (secResults: SectionVerificationResult[]) => {
+    const applicable = secResults.filter((r) => Boolean(r.suggestedText));
+    if (!applicable.length) return;
+
+    const nextEdited = computeNextEditedTexts(
+      editedTexts,
+      applicable.map((r) => ({ sectionId: r.sectionId, revised: r.suggestedText! }))
+    );
+    setEditedTexts(nextEdited);
+
+    const nextReport = verifyThesisSections({
+      rows,
+      constructs,
+      hypothesis,
+      efaConfig,
+      bundle,
+      sections: thesisSections,
+      style,
+      editedTexts: nextEdited,
+    });
+
+    let latestHistory = history;
+    for (const secResult of applicable) {
+      const nextSec = nextReport.sectionResults.find(
+        (r) => r.sectionId === secResult.sectionId
+      );
+      const nextStatus = nextSec?.status ?? 'pass';
+      const reasonSummary = secResult.issues.length
+        ? `${secResult.issues.map((i) => i.ruleNumber).join(', ')} 일괄 수정 적용`
+        : '수정된 논문 문장 일괄 적용';
+      latestHistory = appendVerificationHistory({
+        id: `${Date.now()}_${secResult.sectionId}_batch`,
+        timestamp: Date.now(),
+        fileName,
+        sectionId: secResult.sectionId,
+        sectionTitle: secResult.sectionTitle,
+        action: 'apply_fix',
+        previousStatus: secResult.status,
+        nextStatus,
+        previousText: secResult.originalText,
+        revisedText: secResult.suggestedText!,
+        reasonSummary,
+      });
+      markSectionApplied(secResult.sectionId);
+    }
+    setHistory(latestHistory);
+
+    const firstSec = applicable[0];
+    setLastAppliedBanner({
+      sectionId: firstSec.sectionId,
+      sectionTitle: firstSec.sectionTitle,
+      appliedCount: applicable.length,
+      passRate: nextReport.passRate,
+    });
+
+    toast?.pushToast({
+      severity: 'success',
+      title: '수정된 논문 문장 일괄 적용 완료',
+      message: `${applicable.length}개 절에 수정된 논문 문장이 적용되었습니다. (통과율 ${nextReport.passRate.toFixed(1)}%)`,
+    });
+
+    jumpToSection(firstSec.sectionId);
+  };
+
+  const handleRestoreAuto = (section: ThesisSection, secResult?: SectionVerificationResult) => {
+    const autoText = style === 'standard' ? section.standardText : section.conciseText;
+    const prevText = editedTexts[section.id] ?? autoText;
+    setEditedTexts((prev) => {
+      const next = { ...prev };
+      delete next[section.id];
+      return next;
+    });
+    if (prevText !== autoText && secResult) {
+      const nextHistory = appendVerificationHistory({
+        id: `${Date.now()}_${section.id}_restore`,
+        timestamp: Date.now(),
+        fileName,
+        sectionId: section.id,
+        sectionTitle: section.title,
+        action: 'restore_auto',
+        previousStatus: secResult.status,
+        nextStatus: 'pass',
+        previousText: prevText,
+        revisedText: autoText,
+        reasonSummary: '자동 생성 원문 복원',
+      });
+      setHistory(nextHistory);
+    }
+  };
+
+  const handleClearHistory = () => {
+    clearVerificationHistory();
+    setHistory([]);
   };
 
   const exportThesisRows = thesisSections.map((s) => ({
@@ -551,10 +837,10 @@ export const StepReport: React.FC<StepReportProps> = ({
             <BookOpen className="w-5 h-5 text-blue-700 shrink-0 mt-1" />
             <div>
               <h3 className="text-lg font-bold text-slate-900">
-                논문 본문 문장 작성 워크벤치 (자동 생성 · 직접 편집 가능)
+                논문 본문 문장 작성 워크벤치 (자동 생성 · 직접 편집 · 실시간 검증)
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
-                각 절의 결과표 해석 기준과 실제 산출 수치를 반영해 학위·학술지 논문 본문 문장을 생성했습니다. 필요 시 문장을 직접 다듬어 복사하세요.
+                각 절의 결과표 해석 기준과 실제 산출 수치를 반영해 학위·학술지 논문 본문 문장을 생성했습니다. 직접 문장을 수정하면 8개 검증 항목으로 즉시 대조합니다.
               </p>
             </div>
           </div>
@@ -605,18 +891,40 @@ export const StepReport: React.FC<StepReportProps> = ({
             const currentText = getSectionText(section);
             const isEdited = editedTexts[section.id] !== undefined;
             const isCopied = copiedId === section.id;
+            const secVerification = verificationReport.sectionResults.find(
+              (r) => r.sectionId === section.id
+            );
+
+            const isRecentlyApplied = Boolean(recentlyAppliedIds[section.id]);
 
             return (
               <div
                 key={section.id}
-                className="border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-3.5 bg-slate-50/50"
+                id={`thesis-section-${section.id}`}
+                ref={(el) => {
+                  sectionRefs.current[section.id] = el;
+                }}
+                className={`border rounded-2xl p-4 sm:p-5 space-y-3.5 transition-all ${
+                  isRecentlyApplied
+                    ? 'border-emerald-400 bg-emerald-50/40 ring-2 ring-emerald-500/30'
+                    : 'border-slate-200/90 bg-slate-50/50'
+                }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-                  <div>
-                    <div className="text-xs font-mono text-blue-700 font-bold">
-                      {section.stepLabel}
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-mono text-blue-700 font-bold">
+                        {section.stepLabel}
+                      </span>
+                      {secVerification && <StatusBadge status={secVerification.status} />}
+                      {isRecentlyApplied && (
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-0.5 text-xs font-bold text-white">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>수정된 논문 문장 적용됨</span>
+                        </span>
+                      )}
                     </div>
-                    <h4 className="text-base font-bold text-slate-900 mt-0.5">
+                    <h4 className="text-base font-bold text-slate-900">
                       {idx + 1}. {section.title}
                     </h4>
                   </div>
@@ -624,13 +932,7 @@ export const StepReport: React.FC<StepReportProps> = ({
                     {isEdited && (
                       <button
                         type="button"
-                        onClick={() =>
-                          setEditedTexts((prev) => {
-                            const next = { ...prev };
-                            delete next[section.id];
-                            return next;
-                          })
-                        }
+                        onClick={() => handleRestoreAuto(section, secVerification)}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1.5 min-h-[38px] text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
@@ -667,19 +969,109 @@ export const StepReport: React.FC<StepReportProps> = ({
 
                 {/* Editable Manuscript Textarea */}
                 <textarea
+                  ref={(el) => {
+                    textareaRefs.current[section.id] = el;
+                  }}
                   value={currentText}
                   onChange={(e) =>
                     setEditedTexts((prev) => ({ ...prev, [section.id]: e.target.value }))
                   }
+                  onBlur={() => {
+                    if (isEdited && secVerification && secVerification.status !== 'pass') {
+                      const nextHistory = appendVerificationHistory({
+                        id: `${Date.now()}_${section.id}_edit`,
+                        timestamp: Date.now(),
+                        fileName,
+                        sectionId: section.id,
+                        sectionTitle: section.title,
+                        action: 'manual_edit',
+                        previousStatus: 'pass',
+                        nextStatus: secVerification.status,
+                        previousText:
+                          style === 'standard' ? section.standardText : section.conciseText,
+                        revisedText: currentText,
+                        reasonSummary:
+                          secVerification.issues.map((i) => i.ruleNumber).join(', ') ||
+                          '편집 후 검증 오류 감지',
+                      });
+                      setHistory(nextHistory);
+                    }
+                  }}
                   rows={Math.min(10, Math.max(3, Math.ceil(currentText.length / 85)))}
                   aria-label={`${section.title} 논문 문장 편집`}
                   className="w-full rounded-xl border border-slate-300 bg-white p-4 text-sm text-slate-800 leading-relaxed focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                 />
+
+                {/* Inline Verification Error & Fix Panel */}
+                {secVerification && secVerification.status !== 'pass' && (
+                  <div
+                    className={`rounded-xl border p-4 space-y-2.5 text-xs ${
+                      secVerification.status === 'needs_revision'
+                        ? 'border-rose-200 bg-rose-50/50'
+                        : 'border-amber-200 bg-amber-50/50'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-bold text-rose-900">
+                        {secVerification.status === 'needs_revision'
+                          ? '문장 검증 오류 감지 — 수정 필요'
+                          : '필요한 통계값 누락 — 검증 불가'}
+                      </span>
+                      {secVerification.suggestedText && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleApplyFix(secVerification)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 transition-colors cursor-pointer no-print"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>수정된 논문 문장 적용</span>
+                        </button>
+                      )}
+                    </div>
+                    {secVerification.issues.length > 0 && (
+                      <ul className="space-y-1 text-rose-900">
+                        {secVerification.issues.map((iss, issIdx) => (
+                          <li key={issIdx}>
+                            · [{iss.ruleNumber} {iss.ruleTitle}] {iss.reason}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="text-slate-700">
+                      <span className="font-semibold">실제 통계 결과: </span>
+                      <span className="font-mono">{secVerification.actualStatsSummary}</span>
+                    </div>
+                    {secVerification.suggestedText && (
+                      <div className="bg-white border border-blue-200 rounded-lg p-2.5 text-slate-800">
+                        <div className="font-bold text-blue-800 mb-1">수정된 논문 문장 제안</div>
+                        <p className="whitespace-pre-line leading-relaxed">
+                          {secVerification.suggestedText}
+                        </p>
+                      </div>
+                    )}
+                    <div className="text-slate-600">
+                      <span className="font-semibold">참고한 통계적 판단 기준: </span>
+                      {secVerification.appliedCriteria.join(' / ')}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       </div>
+
+      {/* Verification Dashboard & Independent Cross-Check Report */}
+      <ThesisVerificationReport
+        report={verificationReport}
+        history={history}
+        onApplyFix={(sec) => handleApplyFix(sec, { scrollOnResolve: true })}
+        onApplyAllFixes={handleApplyAllFixes}
+        lastAppliedBanner={lastAppliedBanner}
+        onJumpToSection={jumpToSection}
+        onClearHistory={handleClearHistory}
+      />
 
       <StepFooterNav
         prevLabel="5. 회귀분석 (H1~H3)"
@@ -690,3 +1082,4 @@ export const StepReport: React.FC<StepReportProps> = ({
     </div>
   );
 };
+

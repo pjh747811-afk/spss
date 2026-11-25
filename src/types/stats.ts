@@ -1,19 +1,40 @@
 export type DataRow = Record<string, string | number | null | undefined>;
 
+export type ConstructRole = 'independent' | 'mediator' | 'moderator' | 'dependent' | 'unassigned';
+
 export interface ConstructMapping {
   id: string;
   name: string;
   items: string[];
+  role?: ConstructRole;
+}
+
+export interface ResearchHypothesisPath {
+  id: string; // e.g. 'H1', 'H2', 'H3'
+  from: string; // source construct name
+  fromId?: string;
+  to: string; // target construct name
+  toId?: string;
+  role: 'direct' | 'mediation_a' | 'mediation_b' | 'moderation';
+  moderator?: string;
+  moderatorId?: string;
+  description?: string;
 }
 
 export interface HypothesisConfig {
+  modelName?: string;
   mediator: string;
+  mediatorId?: string;
   dependent: string;
+  dependentId?: string;
   independents: string[];
+  independentIds?: string[];
   controls: string[];
   moderator?: string;
+  moderatorId?: string;
   moderationX?: string;
   moderationY?: string;
+  paths?: ResearchHypothesisPath[];
 }
 
 export interface EFAConfig {
@@ -65,8 +86,10 @@ export interface StepIssue {
     | 'correlation'
     | 'regression'
     | 'mediation'
-    | 'moderation';
+    | 'moderation'
+    | 'thesis';
   severity: 'error' | 'warning' | 'info';
+  constraint?: string;
   message: string;
   actionHint?: string;
   variables?: string[];
@@ -245,3 +268,88 @@ export interface AnalysisBundle {
   issues?: StepIssue[];
   columnProfiles?: ColumnProfile[];
 }
+
+// ---------- Thesis Sentence Verification Engine Types ----------
+
+export type VerificationStatus = 'pass' | 'needs_revision' | 'unverifiable';
+
+export type VerificationRuleId =
+  | 'numeric_mismatch'        // ① 통계적 수치 일치 여부
+  | 'significance_error'      // ② 유의확률·유의성 해석 정확성
+  | 'direction_sign_error'    // ③ 회귀계수 부호·영향 방향 일치
+  | 'variable_role_swap'      // ④ 독립·종속변수 위치 확인
+  | 'hypothesis_mismatch'     // ⑤ 연구가설·분석 결과 일치
+  | 'med_mod_criteria_error'  // ⑥ 매개·조절효과 판단 기준 적용
+  | 'unanalyzed_content'      // ⑦ 미분석 내용 임의 생성 방지
+  | 'causal_overstatement';   // ⑧ 인과표현 제한
+
+export interface VerificationIssueDetail {
+  ruleId: VerificationRuleId;
+  ruleNumber: string; // '①'..'⑧'
+  ruleTitle: string;
+  reason: string;
+  criterion: string;
+}
+
+export interface SectionVerificationResult {
+  sectionId: string;
+  sectionTitle: string;
+  stepLabel: string;
+  style: 'standard' | 'concise';
+  isUserEdited: boolean;
+  status: VerificationStatus;
+  originalText: string;
+  issues: VerificationIssueDetail[];
+  actualStatsSummary: string;
+  suggestedText: string | null;
+  appliedCriteria: string[];
+  checkedAt: number;
+}
+
+export interface IndependentStatComparisonRow {
+  analysisKey: string;
+  analysisLabel: string;
+  sectionId: string;
+  webAppResult: string;
+  independentResult: string;
+  differenceSummary: string;
+  maxDiff: number | null;
+  withinTolerance: boolean | null;
+  sentenceAccuracy: VerificationStatus;
+  finalVerdict: VerificationStatus;
+  note?: string;
+}
+
+export interface VerificationErrorTypeStat {
+  ruleId: VerificationRuleId;
+  ruleNumber: string;
+  label: string;
+  count: number;
+}
+
+export interface VerificationReportSummary {
+  generatedAt: number;
+  totalSections: number;
+  passCount: number;
+  needsRevisionCount: number;
+  unverifiableCount: number;
+  passRate: number; // 0..100
+  errorStats: VerificationErrorTypeStat[];
+  sectionResults: SectionVerificationResult[];
+  comparisons: IndependentStatComparisonRow[];
+}
+
+export interface VerificationHistoryEntry {
+  id: string;
+  timestamp: number;
+  fileName: string;
+  sectionId: string;
+  sectionTitle: string;
+  action: 'auto_verify' | 'manual_edit' | 'apply_fix' | 'restore_auto';
+  previousStatus: VerificationStatus;
+  nextStatus: VerificationStatus;
+  previousText: string;
+  revisedText: string;
+  reasonSummary: string;
+}
+

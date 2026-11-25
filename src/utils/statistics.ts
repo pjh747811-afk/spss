@@ -434,6 +434,7 @@ export function runEFAWithDiagnostics(
     issues.push({
       step: 'efa',
       severity: 'error',
+      constraint: '최소 문항 수 (≥ 2개) 미달',
       message: '요인분석을 실행하려면 최소 2개 이상의 측정 문항이 매핑되어야 합니다.',
       actionHint: '0단계 [변수 매핑 · 모형 설정] 탭에서 수치형 설문 문항을 2개 이상 선택해 주세요.',
       variables: rawItems,
@@ -445,8 +446,10 @@ export function runEFAWithDiagnostics(
     issues.push({
       step: 'efa',
       severity: 'error',
+      constraint: '최소 표본 수 (N ≥ 3) 미달',
       message: `표본 수(N=${rows.length})가 너무 적어 요인분석을 실행할 수 없습니다 (최소 3케이스 필요).`,
       actionHint: '3행 이상의 응답 데이터가 포함된 파일을 업로드해 주세요.',
+      variables: rawItems,
     });
     return { result: null, issues };
   }
@@ -477,6 +480,7 @@ export function runEFAWithDiagnostics(
     issues.push({
       step: 'efa',
       severity: 'warning',
+      constraint: '비수치 / 분산 0 문항 자동 제외',
       message: `수치형이 아니거나 분산이 0인 문항 ${excludedItems.length}개를 요인분석에서 자동 제외했습니다: ${excludedItems
         .map((e) => `${e.item}(${e.reason})`)
         .join(', ')}`,
@@ -490,6 +494,7 @@ export function runEFAWithDiagnostics(
     issues.push({
       step: 'efa',
       severity: 'error',
+      constraint: '최소 문항 수 (≥ 2개) 미달',
       message: '유효한 수치형 문항이 2개 미만이어서 요인분석을 진행할 수 없습니다.',
       actionHint: '숫자 응답(예: 리커트 1~5점)으로 구성된 문항을 2개 이상 지정해 주세요.',
       variables: rawItems,
@@ -535,8 +540,10 @@ export function runEFAWithDiagnostics(
       issues.push({
         step: 'efa',
         severity: 'error',
+        constraint: '결측 제외 후 분산 0 (상수 문항)',
         message: '결측값 제거 후 분산이 0이 아닌 문항이 2개 미만입니다.',
         actionHint: '결측이 집중된 문항을 제외하거나 응답 데이터를 보완해 주세요.',
+        variables: excludedItems.map((e) => e.item),
       });
       return { result: null, issues };
     }
@@ -606,6 +613,7 @@ export function runEFAWithDiagnostics(
       issues.push({
         step: 'efa',
         severity: 'error',
+        constraint: '유효 표본 수(N) 부족',
         message: `결측값을 제외한 유효 표본 수(목록별 N=${listwiseMatrix.length}, 쌍별 최소 N=${
           Number.isFinite(minPairN) ? minPairN : 0
         })가 문항 수(${p}개) 대비 부족하여 요인분석을 수행할 수 없습니다.`,
@@ -618,8 +626,10 @@ export function runEFAWithDiagnostics(
     issues.push({
       step: 'efa',
       severity: 'warning',
+      constraint: '목록별 표본 부족 → 쌍별 결측 제외 적용',
       message: `일부 문항에 결측값이 포함되어 목록별 완전 케이스(N=${listwiseMatrix.length})가 문항 수(${p}개)보다 적으므로, SPSS 쌍별 제외(Pairwise, 최소 N=${n}) 방식으로 상관계수 행렬을 산출했습니다.`,
       actionHint: '결측이 집중된 문항이 있다면 [변수 매핑 · 모형 설정]에서 해당 문항을 점검하세요.',
+      variables: validItems,
     });
   }
 
@@ -656,9 +666,11 @@ export function runEFAWithDiagnostics(
     issues.push({
       step: 'efa',
       severity: 'warning',
+      constraint: '상관행렬 특이값 (KMO·Bartlett 생략)',
       message:
         '문항 간 상관행렬이 특이행렬(완전 다중공선성 또는 표본 수 < 문항 수)이어서 KMO·Bartlett 검정치는 산출되지 않았으나 주성분 요인부하량은 계산되었습니다.',
       actionHint: '완전히 동일한 문항을 제거하거나 표본 수를 늘리면 KMO/Bartlett 검정이 정상 산출됩니다.',
+      variables: activeItems,
     });
   }
 
@@ -1081,6 +1093,7 @@ export function runOLSWithDiagnostics(
       issue: {
         step: 'regression',
         severity: 'error',
+        constraint: `표본 수(N=${n}) ≤ 모수 수(${p})`,
         message: `${hypothesis}(${label}): 결측 제외 후 유효 표본 수(N=${n})가 추정 모수 수(독립·통제변수 ${k}개 + 상수 = ${p}) 이하이므로 회귀분석이 불가능합니다.`,
         actionHint: `최소 ${p + 1}개 이상의 완전한 수치 응답 행이 필요하며, 결측이 많은 변수를 확인해 주세요.`,
         variables: [dependentName, ...xCols.map((c) => c.name)],
@@ -1097,6 +1110,7 @@ export function runOLSWithDiagnostics(
       issue: {
         step: 'regression',
         severity: 'error',
+        constraint: '종속변수 분산 0 (상수)',
         message: `${hypothesis}(${label}): 종속변수 '${dependentName}'의 유효 표본 값이 모두 동일하여(분산 0) 회귀식을 추정할 수 없습니다.`,
         variables: [dependentName],
       },
@@ -1116,6 +1130,7 @@ export function runOLSWithDiagnostics(
       issue: {
         step: 'regression',
         severity: 'error',
+        constraint: '독립·통제변수 분산 0 (상수)',
         message: `${hypothesis}(${label}): 투입 변수 [${constPredictors.join(', ')}]의 값이 모두 동일(분산 0)하여 회귀계수를 계산할 수 없습니다.`,
         actionHint: '해당 변수의 데이터 값이나 통제/독립변수 구성을 확인해 주세요.',
         variables: constPredictors,
@@ -1142,6 +1157,7 @@ export function runOLSWithDiagnostics(
       issue: {
         step: 'regression',
         severity: 'error',
+        constraint: '완전 다중공선성 (역행렬 계산 실패)',
         message: `${hypothesis}(${label}): 투입된 변수 간 완전 다중공선성(동일하거나 선형 종속인 변수)이 존재하여 역행렬 계산에 실패했습니다.`,
         actionHint: '중복된 문항이나 동일한 변수(예: 합변수와 구성 문항 동시 투입)가 없는지 확인해 주세요.',
         variables: xCols.map((c) => c.name),

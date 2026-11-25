@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { ReliabilityRow, StepIssue } from '../../types/stats';
+import { ReliabilityRow, SectionVerificationResult, StepIssue } from '../../types/stats';
 import { fmtNum } from '../../utils/statistics';
 import { ThesisSection } from '../../utils/thesisWriter';
 import { CopyTableButton } from '../CopyTableButton';
@@ -14,6 +14,7 @@ interface StepReliabilityProps {
   rows: ReliabilityRow[];
   issues?: StepIssue[];
   thesisSection?: ThesisSection;
+  thesisVerification?: SectionVerificationResult;
   onPrev: () => void;
   onNext: () => void;
 }
@@ -29,6 +30,7 @@ export const StepReliability: React.FC<StepReliabilityProps> = ({
   rows,
   issues = [],
   thesisSection,
+  thesisVerification,
   onPrev,
   onNext,
 }) => {
@@ -312,7 +314,9 @@ export const StepReliability: React.FC<StepReliabilityProps> = ({
         </div>
       </div>
 
-      {thesisSection && <ThesisSentenceCard section={thesisSection} />}
+      {thesisSection && (
+        <ThesisSentenceCard section={thesisSection} verification={thesisVerification} />
+      )}
 
       <StepFooterNav
         prevLabel="1. 요인분석 (타당성)"

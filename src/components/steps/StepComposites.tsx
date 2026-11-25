@@ -1,5 +1,5 @@
 import React from 'react';
-import { CompositeSummary, StepIssue } from '../../types/stats';
+import { CompositeSummary, SectionVerificationResult, StepIssue } from '../../types/stats';
 import { fmtNum } from '../../utils/statistics';
 import { ThesisSection } from '../../utils/thesisWriter';
 import { CopyTableButton } from '../CopyTableButton';
@@ -13,6 +13,7 @@ interface StepCompositesProps {
   composites: CompositeSummary[];
   issues?: StepIssue[];
   thesisSection?: ThesisSection;
+  thesisVerification?: SectionVerificationResult;
   onPrev: () => void;
   onNext: () => void;
 }
@@ -28,6 +29,7 @@ export const StepComposites: React.FC<StepCompositesProps> = ({
   composites,
   issues = [],
   thesisSection,
+  thesisVerification,
   onPrev,
   onNext,
 }) => {
@@ -185,7 +187,9 @@ export const StepComposites: React.FC<StepCompositesProps> = ({
         </div>
       </div>
 
-      {thesisSection && <ThesisSentenceCard section={thesisSection} />}
+      {thesisSection && (
+        <ThesisSentenceCard section={thesisSection} verification={thesisVerification} />
+      )}
 
       <StepFooterNav
         prevLabel="2. 신뢰도 분석 (α)"

@@ -52,7 +52,14 @@ export const StepIssuesAlert: React.FC<StepIssuesAlertProps> = ({ issues = [], t
             <li key={idx} className="flex items-start gap-2">
               {!title && <ItemIcon className={`w-4 h-4 shrink-0 mt-0.5 ${itemIconCls}`} />}
               <div className="min-w-0 space-y-0.5">
-                <div className="font-medium">{issue.message}</div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {issue.constraint && (
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-white/80 border border-current/20">
+                      {issue.constraint}
+                    </span>
+                  )}
+                  <span className="font-medium">{issue.message}</span>
+                </div>
                 {issue.variables && issue.variables.length > 0 && (
                   <div className="text-xs opacity-80 font-mono break-all">
                     관련 변수: {issue.variables.join(', ')}

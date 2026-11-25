@@ -253,14 +253,15 @@ export function generateThesisSections(
   // 1. EFA & Reliability
   const efa = bundle.efa;
   const rel = bundle.reliability;
-  if (efa || rel.length > 0) {
+  const finiteRel = rel.filter((r) => Number.isFinite(r.alpha));
+  if (efa || finiteRel.length > 0) {
     const cumVar =
       efa && efa.numFactors > 0
         ? efa.varianceExplained[efa.numFactors - 1]?.rotCumPct ?? 0
         : 0;
-    const minAlpha = rel.length ? Math.min(...rel.map((r) => r.alpha)) : NaN;
-    const maxAlpha = rel.length ? Math.max(...rel.map((r) => r.alpha)) : NaN;
-    const allRelOk = rel.every((r) => r.alpha >= 0.6);
+    const minAlpha = finiteRel.length ? Math.min(...finiteRel.map((r) => r.alpha)) : NaN;
+    const maxAlpha = finiteRel.length ? Math.max(...finiteRel.map((r) => r.alpha)) : NaN;
+    const allRelOk = finiteRel.length > 0 && finiteRel.every((r) => r.alpha >= 0.6);
 
     const loadings = efa
       ? efa.rotatedMatrix.map((r) => r.maxAbsLoading).filter((v) => Number.isFinite(v))
@@ -277,33 +278,64 @@ export function generateThesisSections(
           }`
         : '';
 
+    const kmoBartlettValid =
+      efa && Number.isFinite(efa.kmo) && Number.isFinite(efa.bartlettChi2) && Number.isFinite(efa.bartlettP);
+    const kmoOk = kmoBartlettValid && efa.kmo >= 0.6;
+    const bartlettOk = kmoBartlettValid && efa.bartlettP < 0.05;
+
     const efaSentenceStd = efa
-      ? `측정 도구의 구성타당성을 검증하기 위해 총 ${efa.n}명의 응답(측정 문항 ${efa.p}개)을 대상으로 주성분분석(PCA)과 베리맥스(Varimax) 직각회전을 이용한 탐색적 요인분석을 실시하였다. 분석 결과 표본적합도(KMO)는 ${josa(fmtBound(efa.kmo, 3), '으로/로')} 기준치(.60)를 상회하였으며, Bartlett의 구형성 검정 결과 역시 통계적으로 유의하여(χ² = ${fmtNum(efa.bartlettChi2, 2)}, df = ${efa.bartlettDf}, ${fmtAcademicP(efa.bartlettP)}) 요인분석에 적합한 자료임이 확인되었다. 고유값 1.0 이상을 기준으로 총 ${efa.numFactors}개의 요인이 추출되었으며, 전체 분산의 ${fmtNum(cumVar, 2)}%를 설명하였다. 모든 측정 문항의 요인적재량은 ${fmtBound(minLoad, 3)}~${fmtBound(maxLoad, 3)} 범위로 나타났다.${harmanSentence}`
+      ? `측정 도구의 구성타당성을 검증하기 위해 총 ${efa.n}명의 응답(측정 문항 ${efa.p}개)을 대상으로 주성분분석(PCA)과 베리맥스(Varimax) 직각회전을 이용한 탐색적 요인분석을 실시하였다. ${
+          kmoBartlettValid
+            ? `분석 결과 표본적합도(KMO)는 ${josa(fmtBound(efa.kmo, 3), '으로/로')} ${
+                kmoOk ? '기준치(.60)를 상회하였으며' : '기준치(.60)에 다소 미달하였으며'
+              }, Bartlett의 구형성 검정 결과는 χ² = ${fmtNum(efa.bartlettChi2, 2)}, df = ${efa.bartlettDf}, ${fmtAcademicP(efa.bartlettP)}${
+                bartlettOk ? '로 나타나 요인분석에 적합한 자료임이 확인되었다.' : '로 통계적으로 유의하지 않았다.'
+              }`
+            : '다만 상관행렬 특성상 KMO 및 Bartlett 구형성 검정치는 산출되지 않았다.'
+        } 고유값 1.0 이상을 기준으로 총 ${efa.numFactors}개의 요인이 추출되었으며, 전체 분산의 ${fmtNum(cumVar, 2)}%를 설명하였다.${
+          loadings.length ? ` 모든 측정 문항의 요인적재량은 ${fmtBound(minLoad, 3)}~${fmtBound(maxLoad, 3)} 범위로 나타났다.` : ''
+        }${harmanSentence}`
       : '';
 
-    const relDetailStr = rel
+    const relDetailStr = finiteRel
       .map((r) => `${r.constructName}(${r.nItems}문항, α = ${fmtBound(r.alpha, 3)})`)
       .join(', ');
 
-    const relSentenceStd = rel.length
-      ? `다음으로 내적 일관성을 검증하기 위해 Cronbach’s α 계수를 산출한 결과, ${relDetailStr}로 나타나 모든 변수의 신뢰도 계수가 ${fmtBound(minAlpha, 3)}~${fmtBound(maxAlpha, 3)} 범위에 분포하여 ${
+    const relSentenceStd = finiteRel.length
+      ? `다음으로 내적 일관성을 검증하기 위해 Cronbach’s α 계수를 산출한 결과, ${relDetailStr}로 나타나 ${
+          finiteRel.length === 1
+            ? `신뢰도 계수는 ${fmtBound(minAlpha, 3)}로`
+            : `신뢰도 계수가 ${fmtBound(minAlpha, 3)}~${fmtBound(maxAlpha, 3)} 범위에 분포하여`
+        } ${
           allRelOk ? '수용 기준(.60 이상)을 충족하는 양호한 수준으로 확인되었다.' : '일부 척도의 문항 정제 여부를 점검할 필요가 있다.'
         }`
       : '';
 
     const efaSentenceConcise = efa
-      ? `탐색적 요인분석(PCA · Varimax) 결과 KMO = ${fmtBound(efa.kmo, 3)}, Bartlett χ² = ${fmtNum(efa.bartlettChi2, 2)}(${fmtShortP(efa.bartlettP)})로 나타났으며, 고유값 1.0 이상 ${efa.numFactors}개 요인이 총 분산의 ${fmtNum(cumVar, 1)}%를 설명하였다(Harman 단일요인 ${fmtNum(harmanPct, 1)}%).`
+      ? `탐색적 요인분석(PCA · Varimax) 결과 ${
+          kmoBartlettValid
+            ? `KMO = ${fmtBound(efa.kmo, 3)}, Bartlett χ² = ${fmtNum(efa.bartlettChi2, 2)}(${fmtShortP(efa.bartlettP)})로 나타났으며, `
+            : ''
+        }${efa.numFactors}개 요인이 총 분산의 ${fmtNum(cumVar, 1)}%를 설명하였다${
+          Number.isFinite(harmanPct) ? `(Harman 단일요인 ${fmtNum(harmanPct, 1)}%)` : ''
+        }.`
       : '';
 
-    const relSentenceConcise = rel.length
-      ? `신뢰도(Cronbach’s α)는 ${fmtBound(minAlpha, 3)}~${fmtBound(maxAlpha, 3)}로 ${relDetailStr} 모두 기준치(.60)를 상회하였다.`
+    const relSentenceConcise = finiteRel.length
+      ? `신뢰도(Cronbach’s α)는 ${
+          finiteRel.length === 1 ? fmtBound(minAlpha, 3) : `${fmtBound(minAlpha, 3)}~${fmtBound(maxAlpha, 3)}`
+        }로 ${relDetailStr} ${
+          allRelOk ? '모두 기준치(.60)를 상회하였다.' : '중 일부 척도는 기준치(.60) 미만으로 점검이 필요하다.'
+        }`
       : '';
 
     const readingGuide: string[] = [];
     if (efa) {
-      readingGuide.push(
-        `표본적합도: KMO(${fmtBound(efa.kmo, 3)})가 0.6 이상이고 Bartlett 유의확률(${fmtShortP(efa.bartlettP)})이 0.05 미만이면 요인분석에 적합합니다.`
-      );
+      if (kmoBartlettValid) {
+        readingGuide.push(
+          `표본적합도: KMO(${fmtBound(efa.kmo, 3)})가 0.6 이상이고 Bartlett 유의확률(${fmtShortP(efa.bartlettP)})이 0.05 미만이면 요인분석에 적합합니다.`
+        );
+      }
       readingGuide.push(
         `요인 추출: 고유값 1.0 이상인 요인이 ${efa.numFactors}개 추출되었고 누적 설명력은 ${fmtNum(cumVar, 2)}%입니다. 회전된 성분 행렬에서 동일 개념 문항끼리 묶였는지 확인합니다.`
       );
@@ -313,7 +345,7 @@ export function generateThesisSections(
         );
       }
     }
-    if (rel.length) {
+    if (finiteRel.length) {
       readingGuide.push(
         `신뢰도: Cronbach’s α가 0.6 이상(학술 권장 0.7 이상)이면 내적 일관성이 확보된 것으로 해석합니다(현재 ${fmtBound(minAlpha, 3)}~${fmtBound(maxAlpha, 3)}).`
       );
@@ -330,24 +362,27 @@ export function generateThesisSections(
   }
 
   // 2. Descriptives & Correlation
-  if (bundle.composites.length > 0 && bundle.correlation.names.length > 0) {
-    const descList = bundle.composites
+  const validComposites = bundle.composites.filter((c) => c.n > 0 && Number.isFinite(c.mean) && Number.isFinite(c.sd));
+  if (validComposites.length > 0 && bundle.correlation.names.length > 0) {
+    const descList = validComposites
       .map((c) => `${c.name}(M = ${fmtNum(c.mean, 2)}, SD = ${fmtNum(c.sd, 2)})`)
       .join(', ');
-    const maxSkew = Math.max(...bundle.composites.map((c) => Math.abs(c.skewness || 0)));
-    const maxKurt = Math.max(...bundle.composites.map((c) => Math.abs(c.kurtosis || 0)));
+    const skewVals = validComposites.map((c) => Math.abs(c.skewness)).filter((v) => Number.isFinite(v));
+    const kurtVals = validComposites.map((c) => Math.abs(c.kurtosis)).filter((v) => Number.isFinite(v));
+    const maxSkew = skewVals.length ? Math.max(...skewVals) : NaN;
+    const maxKurt = kurtVals.length ? Math.max(...kurtVals) : NaN;
 
     const pairs: { a: string; b: string; r: number; p: number }[] = [];
     const { names, matrix } = bundle.correlation;
     for (let i = 0; i < names.length; i++) {
       for (let j = i + 1; j < names.length; j++) {
         const cell = matrix[i][j];
-        if (Number.isFinite(cell.r)) {
+        if (Number.isFinite(cell.r) && Number.isFinite(cell.p)) {
           pairs.push({ a: names[i], b: names[j], r: cell.r, p: cell.p });
         }
       }
     }
-    const maxAbsR = pairs.length ? Math.max(...pairs.map((x) => Math.abs(x.r))) : 0;
+    const maxAbsR = pairs.length ? Math.max(...pairs.map((x) => Math.abs(x.r))) : NaN;
     const sigPairs = pairs
       .filter((x) => x.p < 0.05)
       .sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
@@ -370,20 +405,41 @@ export function generateThesisSections(
           .map((x) => `${josa(x.a, '과/와')} ${x.b}(r = ${fmtBound(x.r, 3)}, ${fmtShortP(x.p)})`)
           .join(', ');
 
-    const normalSentence =
-      maxSkew < 2 && maxKurt < 7
+    const normalOk = Number.isFinite(maxSkew) && Number.isFinite(maxKurt) && maxSkew < 2 && maxKurt < 7;
+    const normalSentence = Number.isFinite(maxSkew) && Number.isFinite(maxKurt)
+      ? normalOk
         ? `또한 왜도(|Skew| ≤ ${fmtNum(maxSkew, 2)} < 2)와 첨도(|Kurt| ≤ ${fmtNum(maxKurt, 2)} < 7)가 모두 정규분포 가정 기준을 충족하였다.`
-        : `왜도 최댓값은 ${fmtNum(maxSkew, 2)}, 첨도 최댓값은 ${fmtNum(maxKurt, 2)}으로 확인되었다.`;
+        : `왜도 최댓값은 ${fmtNum(maxSkew, 2)}, 첨도 최댓값은 ${fmtNum(maxKurt, 2)}으로 확인되어 일부 변수의 정규성 점검이 필요하다.`
+      : '';
+
+    const discOk = Number.isFinite(maxAbsR) && maxAbsR < 0.85;
+    const discSentence = Number.isFinite(maxAbsR)
+      ? discOk
+        ? `모든 상관계수의 절댓값 최댓값은 ${josa(fmtBound(maxAbsR, 3), '으로/로')} 기준치(.85) 미만으로 나타나 변수 간 판별타당성이 확보되었으며 다중공선성의 우려가 낮은 것으로 판단된다.`
+        : `일부 상관계수의 절댓값 최댓값이 ${josa(fmtBound(maxAbsR, 3), '으로/로')} 기준치(.85) 이상이므로 다중공선성 진단(VIF)을 함께 확인할 필요가 있다.`
+      : '';
 
     const stdText = `연구에 투입된 주요 변수의 기술통계량을 산출한 결과, ${descList}로 나타났다. ${normalSentence}\n\n변수 간 관련성과 판별타당성을 확인하기 위해 Pearson 이변량 상관분석을 실시한 결과, ${
       corrHighlight
         ? `${corrHighlight} 등 주요 연구변수 간에 유의한 상관관계가 확인되었다.`
-        : '변수 간 상관계수를 산출하였다.'
-    } 모든 상관계수의 절댓값 최댓값은 ${josa(fmtBound(maxAbsR, 3), '으로/로')} 기준치(.85) 미만으로 나타나 변수 간 판별타당성이 확보되었으며 다중공선성의 우려가 낮은 것으로 판단된다.`;
+        : '유의한 상관관계를 보이는 변수 쌍이 확인되지 않았다.'
+    } ${discSentence}`.trim();
 
-    const conciseText = `기술통계 결과 ${descList}였으며 정규성 기준(|왜도| < 2, |첨도| < 7)을 충족하였다. Pearson 상관분석 결과 ${
-      corrHighlight ? `${corrHighlight} 등이 유의하였으며` : ''
-    } 모든 상관계수가 ${fmtBound(maxAbsR, 3)} 이하로 다중공선성 우려가 없었다.`;
+    const conciseText = `기술통계 결과 ${descList}였으며${
+      Number.isFinite(maxSkew) && Number.isFinite(maxKurt)
+        ? normalOk
+          ? ' 정규성 기준(|왜도| < 2, |첨도| < 7)을 충족하였다.'
+          : ` 왜도 최댓값(${fmtNum(maxSkew, 2)})·첨도 최댓값(${fmtNum(maxKurt, 2)})을 확인하였다.`
+        : ''
+    } Pearson 상관분석 결과 ${
+      corrHighlight ? `${corrHighlight} 등이 유의하였으며` : '유의한 상관 쌍이 없었으며'
+    }${
+      Number.isFinite(maxAbsR)
+        ? discOk
+          ? ` 모든 상관계수가 ${fmtBound(maxAbsR, 3)} 이하로 다중공선성 우려가 없었다.`
+          : ` 최대 상관계수는 ${fmtBound(maxAbsR, 3)}로 나타났다.`
+        : ''
+    }`;
 
     sections.push({
       id: 'desc_corr',
@@ -392,7 +448,7 @@ export function generateThesisSections(
       readingGuide: [
         `평균(M)과 표준편차(SD)로 응답 분포의 중심과 퍼짐 정도를 확인하고, 왜도(< 2)·첨도(< 7)로 정규성을 점검합니다.`,
         `상관계수(r)의 부호(+/-)로 관계의 방향을, 유의확률(p < .05)로 통계적 유의성을 확인합니다.`,
-        `상관계수 절댓값이 0.85 미만(최대 ${fmtBound(maxAbsR, 3)})이므로 독립변수 간 지나친 중복(다중공선성) 위험이 낮습니다.`,
+        `상관계수 절댓값이 0.85 미만(최대 ${fmtBound(maxAbsR, 3)})이면 독립변수 간 지나친 중복(다중공선성) 위험이 낮습니다.`,
       ],
       standardText: stdText,
       conciseText,
@@ -440,7 +496,9 @@ export function generateThesisSections(
     const indepStr = hypothesis.independents.join(', ');
     const lastIndep = hypothesis.independents[hypothesis.independents.length - 1] ?? indepStr;
 
-    const headerStd = `${josa(hypothesis.mediator, '이/가')} ${josa(indepStr, '과/와', lastIndep)} ${hypothesis.dependent} 간의 관계를 매개하는지 검증하기 위해 Baron과 Kenny의 3단계 회귀절차와 Sobel 검정 및 부트스트래핑(1,000회)을 실시하였다. 앞서 H1(독립→매개)과 H2(매개→종속) 모형이 검증된 데 이어, 독립변수와 매개변수(${hypothesis.mediator})를 동시에 투입한 4단계 모형의 설명력(수정된 R²)은 ${fmtBound(s4.adjR2, 3)}(${(s4.adjR2 * 100).toFixed(1)}%)으로 유의하였으며(F = ${fmtNum(s4.anova.f, 2)}, ${fmtShortP(s4.anova.p)})${
+    const headerStd = `${josa(hypothesis.mediator, '이/가')} ${josa(indepStr, '과/와', lastIndep)} ${hypothesis.dependent} 간의 관계를 매개하는지 검증하기 위해 Baron과 Kenny의 3단계 회귀절차와 Sobel 검정 및 부트스트래핑(1,000회)을 실시하였다. 앞서 H1(독립→매개)과 H2(매개→종속) 모형이 검증된 데 이어, 독립변수와 매개변수(${hypothesis.mediator})를 동시에 투입한 4단계 모형의 설명력(수정된 R²)은 ${fmtBound(s4.adjR2, 3)}(${(s4.adjR2 * 100).toFixed(1)}%)${
+      s4.anova.p < 0.05 ? '으로 유의하였으며' : '으로 유의하지 않았으며'
+    }(F = ${fmtNum(s4.anova.f, 2)}, ${fmtShortP(s4.anova.p)})${
       med.r2ChangeFromH3 !== null
         ? `, H3 모형 대비 R² 변화량(ΔR² = ${fmtBound(med.r2ChangeFromH3, 3)}, ΔF = ${fmtNum(med.fChangeFromH3, 2)}, ${fmtShortP(med.pChangeFromH3)})을 보였다.`
         : '.'
@@ -510,17 +568,27 @@ export function generateThesisSections(
 
     const parts: string[] = [];
     if (h1) {
+      const h1SigCoeffs = h1.coeffs.filter(
+        (c) => c.name !== '(상수)' && !h1Ctrl.has(c.name) && c.p < 0.05
+      );
+      const allPos = h1SigCoeffs.every((c) => c.b >= 0);
+      const allNeg = h1SigCoeffs.every((c) => c.b < 0);
+      const dirPhrase = allPos ? '정(+)의 영향을 미치는' : allNeg ? '부(-)의 영향을 미치는' : '유의한 영향을 미치는';
       parts.push(
         h1Sigs.length
-          ? `${josa(h1Sigs.join(', '), '은/는', h1Sigs[h1Sigs.length - 1])} ${josa(hypothesis.mediator, '을/를')} 통계적으로 유의하게 향상시키는 핵심 선행요인으로 확인되었다(H1 ${h1Verdict}).`
+          ? `${josa(h1Sigs.join(', '), '은/는', h1Sigs[h1Sigs.length - 1])} ${hypothesis.mediator}에 통계적으로 유의한 ${dirPhrase} 핵심 선행요인으로 확인되었다(H1 ${h1Verdict}).`
           : `H1 모형에서 독립변수가 ${hypothesis.mediator}에 미치는 영향을 검증하였으나 유의한 변수가 확인되지 않았다(H1 ${h1Verdict}).`
       );
     }
     if (h2) {
+      const h2Verdict = getHypothesisVerdict(h2);
+      const h2MedCoeff = h2.coeffs.find(
+        (c) => c.name !== '(상수)' && !(h2.controls ?? []).includes(c.name)
+      );
       parts.push(
-        h2.anova.p < 0.05
-          ? `${josa(hypothesis.mediator, '은/는')} ${hypothesis.dependent}에 유의한 영향을 미쳐(β = ${fmtBound(h2.coeffs.find((c) => c.name !== '(상수)' && !(h2.controls ?? []).includes(c.name))?.beta, 3)}, ${fmtShortP(h2.anova.p)}) H2가 채택되었다.`
-          : `H2 모형에서 ${josa(hypothesis.mediator, '이/가')} ${hypothesis.dependent}에 미치는 영향은 통계적으로 유의하지 않았다(H2 ${getHypothesisVerdict(h2)}).`
+        h2Verdict !== '기각' && h2MedCoeff
+          ? `${josa(hypothesis.mediator, '은/는')} ${hypothesis.dependent}에 ${h2MedCoeff.b >= 0 ? '정(+)' : '부(-)'}의 유의한 영향을 미쳐(β = ${fmtBound(h2MedCoeff.beta, 3)}, ${fmtShortP(h2MedCoeff.p)}) H2가 ${h2Verdict}되었다.`
+          : `H2 모형에서 ${josa(hypothesis.mediator, '이/가')} ${hypothesis.dependent}에 미치는 영향은 통계적으로 유의하지 않았다(H2 ${h2Verdict}).`
       );
     }
     if (h3) {
@@ -532,7 +600,7 @@ export function generateThesisSections(
     }
     if (medSigs.length) {
       parts.push(
-        `매개효과 검증 결과 ${medSigs.join(', ')} 경로에서 ${hypothesis.mediator}의 유의한 매개 작용이 입증되어, 선행요인이 ${josa(hypothesis.mediator, '을/를')} 통해 ${hypothesis.dependent}으로 이어지는 과정적 메커니즘을 실증적으로 확인하였다.`
+        `매개효과 검증 결과 ${medSigs.join(', ')} 경로에서 ${hypothesis.mediator}의 유의한 매개 작용이 확인되어, 선행요인이 ${josa(hypothesis.mediator, '을/를')} 통해 ${hypothesis.dependent}으로 이어지는 통계적 관련 경로가 지지되었다.`
       );
     }
     if (modClause) {

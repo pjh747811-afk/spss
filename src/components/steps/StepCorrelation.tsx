@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CompositeSummary, CorrelationResult, StepIssue } from '../../types/stats';
+import { CompositeSummary, CorrelationResult, SectionVerificationResult, StepIssue } from '../../types/stats';
 import { fmtNum, fmtP, sigStars } from '../../utils/statistics';
 import { ThesisSection } from '../../utils/thesisWriter';
 import { CopyTableButton } from '../CopyTableButton';
@@ -15,6 +15,7 @@ interface StepCorrelationProps {
   composites: CompositeSummary[];
   issues?: StepIssue[];
   thesisSection?: ThesisSection;
+  thesisVerification?: SectionVerificationResult;
   onPrev: () => void;
   onNext: () => void;
 }
@@ -31,6 +32,7 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
   composites,
   issues = [],
   thesisSection,
+  thesisVerification,
   onPrev,
   onNext,
 }) => {
@@ -209,7 +211,9 @@ export const StepCorrelation: React.FC<StepCorrelationProps> = ({
 
       <CorrelationHeatmap correlation={correlation} />
 
-      {thesisSection && <ThesisSentenceCard section={thesisSection} />}
+      {thesisSection && (
+        <ThesisSentenceCard section={thesisSection} verification={thesisVerification} />
+      )}
 
       <StepFooterNav
         prevLabel="3. 변수 계산 (합변수)"
